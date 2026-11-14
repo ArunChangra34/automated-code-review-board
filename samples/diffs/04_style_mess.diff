@@ -1,0 +1,48 @@
+--- a/src/processors/data_processor.py
++++ b/src/processors/data_processor.py
+@@ -1,0 +1,45 @@
++import sys
++from os import *
++
++def PROCESS_USER_RECORDS(DATA_LIST, flag=True):
++    print("DEBUG: entering PROCESS_USER_RECORDS with data size:", len(DATA_LIST))
++    # old_implementation = [x for x in DATA_LIST if x is not None]
++    # result = []
++    # for item in old_implementation:
++    #     result.append(item.upper())
++    processed_items = []
++    very_long_variable_name_that_exceeds_the_standard_line_length_threshold_configured_for_clean_code_in_this_repository = 100
++    try:
++        for i in range(len(DATA_LIST)):
++            raw = DATA_LIST[i]
++            if raw is not None:
++                if type(raw) is dict:
++                    for k in raw.keys():
++                        if k == "secret":
++                            print("found secret key in payload")
++                        else:
++                            processed_items.append(raw[k])
++                else:
++                    processed_items.append(str(raw))
++            else:
++                print("DEBUG: encountered none value at index", i)
++        if len(processed_items) > 1000:
++            print("large record set processed")
++        if flag:
++            for j in range(len(processed_items)):
++                print("item:", processed_items[j])
++    except:
++        print("error occurred during processing")
++        return None
++
++    def nested_worker_one():
++        return 1
++
++    def nested_worker_two():
++        return 2
++
++    return processed_items
++
++class my_custom_handler:
++    def RUN(self):
++        return True

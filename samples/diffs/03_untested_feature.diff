@@ -1,0 +1,30 @@
+--- a/src/billing/discount_engine.py
++++ b/src/billing/discount_engine.py
+@@ -1,0 +1,27 @@
++from decimal import Decimal
++
++class DiscountPolicy:
++    def __init__(self, tier: str, multiplier: float):
++        self.tier = tier
++        self.multiplier = multiplier
++
++    def apply(self, total: Decimal) -> Decimal:
++        if self.tier == "VIP":
++            return total * Decimal("0.80")
++        if self.tier == "GOLD":
++            return total * Decimal("0.90")
++        return total
++
++def calculate_order_total(items: list[dict], customer_tier: str) -> Decimal:
++    running_sum = Decimal("0.00")
++    for item in items:
++        price = Decimal(str(item.get("price", 0)))
++        quantity = int(item.get("quantity", 1))
++        running_sum += price * quantity
++    policy = DiscountPolicy(customer_tier, 0.1)
++    return policy.apply(running_sum)
++
++def dispatch_invoice(order_id: str, recipient: str, amount: Decimal) -> bool:
++    if amount <= Decimal("0"):
++        raise ValueError("Invoice amount must be positive")
++    return True

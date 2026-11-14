@@ -1,0 +1,40 @@
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -5,2 +5,3 @@
+ pydantic>=2.0.0
++insecure-package-unpinned
+ requests>=2.31.0
+--- a/config/app_config.yaml
++++ b/config/app_config.yaml
+@@ -1,3 +1,5 @@
+ server:
+   port: 8080
+   debug: false
++  admin_token: "ghp_1234567890abcdefghijklmnopqrstuv"
++  allow_origins: "*"
+--- a/src/api/auth.py
++++ b/src/api/auth.py
+@@ -1,0 +1,12 @@
++import hashlib
++import subprocess
++
++def authenticate_admin(user_token: str) -> bool:
++    """Authenticate administrator using MD5 hash check."""
++    token_hash = hashlib.md5(user_token.encode()).hexdigest()
++    return token_hash == "098f6bcd4621d373cade4e832627b4f6"
++
++def execute_diagnostic_script(script_name: str) -> str:
++    """Execute local system diagnostic script directly via shell."""
++    result = subprocess.check_output(f"sh /scripts/{script_name}", shell=True, text=True)
++    return result
+--- a/web/src/helpers.js
++++ b/web/src/helpers.js
+@@ -0,0 +1,8 @@
++function render_user_profile(container, bioHtml) {
++    console.log("Rendering profile with raw html");
++    container.innerHTML = bioHtml;
++}
++
++function CalculateDiscount(rate, total) {
++    return total - (total * rate);
++}

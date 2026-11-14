@@ -1,0 +1,50 @@
+--- a/src/math_utils.py
++++ b/src/math_utils.py
+@@ -1,2 +1,23 @@
++"""Mathematical helper utilities for coordinate calculation."""
++
++from __future__ import annotations
++import math
++
++
++def calculate_hypotenuse(side_a: float, side_b: float) -> float:
++    """Compute the hypotenuse of a right-angled triangle given two sides.
++
++    Args:
++        side_a: Length of the first perpendicular side.
++        side_b: Length of the second perpendicular side.
++
++    Returns:
++        The Euclidean length of the hypotenuse.
++    """
++    if side_a < 0 or side_b < 0:
++        raise ValueError("Triangle side lengths cannot be negative")
++    return math.hypot(side_a, side_b)
++
++
+ def calculate_area(radius: float) -> float:
+-    return 3.14 * radius * radius
++    return math.pi * radius * radius
+--- /dev/null
++++ b/tests/test_math_utils.py
+@@ -0,0 +1,20 @@
++"""Unit tests for math utilities."""
++
++import pytest
++from src.math_utils import calculate_hypotenuse, calculate_area
++
++
++def test_calculate_hypotenuse_valid() -> None:
++    """Verify hypotenuse for Pythagorean triple."""
++    assert calculate_hypotenuse(3.0, 4.0) == 5.0
++
++
++def test_calculate_hypotenuse_negative_raises() -> None:
++    """Ensure negative sides raise ValueError."""
++    with pytest.raises(ValueError):
++        calculate_hypotenuse(-1.0, 4.0)
++
++
++def test_calculate_area() -> None:
++    """Verify circle area."""
++    assert calculate_area(1.0) > 3.14
