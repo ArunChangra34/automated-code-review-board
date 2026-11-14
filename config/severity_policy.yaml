@@ -1,0 +1,33 @@
+# Severity policy and merge-decision rubric for Automated Code Review Board
+
+weights:
+  CRITICAL: 40
+  HIGH: 20
+  MEDIUM: 8
+  LOW: 2
+  INFO: 0
+
+blocking_severities:
+  - CRITICAL
+  - HIGH
+
+# Merge decision thresholds
+thresholds:
+  request_changes_score: 30
+  max_score: 100
+  corroboration_multiplier: 0.10
+
+# Category prioritization order for ranking
+category_priority:
+  - security
+  - test_coverage
+  - style
+  - diff
+
+# Size class thresholds (total added + removed lines)
+size_thresholds:
+  XS: 20
+  S: 100
+  M: 300
+  L: 800
+  XL: 99999999
