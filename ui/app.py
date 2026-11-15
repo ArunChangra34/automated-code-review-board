@@ -16,14 +16,14 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-import streamlit as st
+import streamlit as st  # noqa: E402
 
-from config.settings import get_settings
-from core.diff_loader import load_diff_from_stdin
-from core.models import Severity
-from core.orchestrator import ReviewOrchestrator
-from reporting.json_report import generate_json_report
-from reporting.markdown_report import generate_markdown_report
+from config.settings import get_settings  # noqa: E402
+from core.diff_loader import load_diff_from_stdin  # noqa: E402
+from core.models import Severity  # noqa: E402
+from core.orchestrator import ReviewOrchestrator  # noqa: E402
+from reporting.json_report import generate_json_report  # noqa: E402
+from reporting.markdown_report import generate_markdown_report  # noqa: E402
 
 # Page Configuration
 st.set_page_config(
@@ -112,7 +112,7 @@ selected_sample = None
 uploaded_file = None
 pasted_diff = ""
 
-if diff_source == "Pre-Made Real Examples":
+if "Pre-Made" in diff_source:
     if sample_files:
         chosen_friendly = st.sidebar.selectbox(
             "Select an Example Scenario",
@@ -126,13 +126,13 @@ if diff_source == "Pre-Made Real Examples":
                 break
     else:
         st.sidebar.warning("No sample diff files found in samples/diffs/")
-elif diff_source == "Upload Diff File":
+elif "Upload" in diff_source:
     uploaded_file = st.sidebar.file_uploader(
         "Upload a .diff or .patch file",
         type=["diff", "patch", "txt"],
         help="A unified diff file showing additions (+) and deletions (-).",
     )
-else:
+elif "Paste" in diff_source:
     pasted_diff = st.sidebar.text_area(
         "Paste Unified Diff Text Here",
         height=220,
@@ -168,9 +168,18 @@ elif pasted_diff:
 
 # Main Canvas
 if not raw_diff_text.strip():
-    st.info(
-        "👈 Choose a sample scenario on the left and click **'Run Team Review Now'** to get started!"
-    )
+    if "Upload" in diff_source:
+        st.info(
+            "👈 Please upload a `.diff` or `.patch` file in the sidebar and click **'Run Team Review Now'**!"
+        )
+    elif "Paste" in diff_source:
+        st.info(
+            "👈 Please paste your unified diff text into the box in the sidebar and click **'Run Team Review Now'**!"
+        )
+    else:
+        st.info(
+            "👈 Choose a sample scenario on the left and click **'Run Team Review Now'** to get started!"
+        )
 else:
     # Optional Preview of raw diff
     with st.expander("📄 Click to Peek at the Raw Code Changes", expanded=False):
