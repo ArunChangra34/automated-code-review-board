@@ -8,6 +8,7 @@ from typing import Any
 from semantic_kernel import Kernel
 
 from agents.diff_agent import DiffAgent
+from agents.fix_suggestion_agent import FixSuggestionAgent
 from agents.reviewer_manager import ReviewerManager
 from agents.security_agent import SecurityAgent
 from agents.style_agent import StyleAgent
@@ -33,7 +34,6 @@ class ReviewOrchestrator:
         self.settings = settings or get_settings()
         self.kernel = kernel or create_kernel(self.settings)
         self.coverage_report_path = coverage_report_path
-        self.fix_agent = fix_agent
 
         # Instantiate specialist agents
         self.diff_agent = DiffAgent(kernel=self.kernel, settings=self.settings)
@@ -45,8 +45,9 @@ class ReviewOrchestrator:
             coverage_report_path=coverage_report_path,
         )
 
-        # Instantiate manager
+        # Instantiate manager and fix-suggestion agent
         self.manager = ReviewerManager(kernel=self.kernel, settings=self.settings)
+        self.fix_agent = fix_agent or FixSuggestionAgent(kernel=self.kernel, settings=self.settings)
 
     async def run_review(self, state: ChangeState) -> ChangeState:
         """Execute the multi-agent review pipeline across all stages."""
