@@ -167,6 +167,10 @@ if not raw_diff_text.strip():
         )
 else:
     with st.expander("📄 View Input Unified Diff", expanded=False):
+        st.caption(
+            "This box displays the raw code changes (unified diff) currently loaded into the system. "
+            "To review this document with the AI agents, click **'Run Team Review Now'** in the sidebar."
+        )
         st.code(
             raw_diff_text[:3000] + ("\n... [truncated]" if len(raw_diff_text) > 3000 else ""),
             language="diff",
@@ -760,19 +764,39 @@ if run_button and raw_diff_text.strip():
     settings = get_settings()
     settings.mode = execution_mode
 
-    with st.spinner("Executing concurrent specialist agents (Diff, Style, Security, Coverage)..."):
-        state = load_diff_from_stdin(raw_diff_text)
-        orchestrator = ReviewOrchestrator(settings=settings)
-        state = asyncio.run(orchestrator.run_review(state))
+    try:
+        with st.spinner("Executing concurrent specialist agents (Diff, Style, Security, Coverage)..."):
+            state = load_diff_from_stdin(raw_diff_text)
+            orchestrator = ReviewOrchestrator(settings=settings)
+            state = asyncio.run(orchestrator.run_review(state))
 
-    review = state.consolidated_review
-    summary = state.summary
-    patch = state.suggested_patch or (review.suggested_patch if review else None)
+        st.session_state["review_state"] = state
+        st.session_state["last_diff_text"] = raw_diff_text
+    except Exception as exc:
+        st.error(
+            f"❌ **Failed to parse or review the diff:** {exc}\n\n"
+            "Please ensure your input is in **Unified Diff** format (e.g., starts with `diff --git ...`, `--- a/...`, `+++ b/...`) "
+            "or test one of the pre-made sample scenarios from the sidebar."
+        )
+
+# Render active review if available in session state
+if "review_state" in st.session_state and st.session_state["review_state"]:
+    cached_state = st.session_state["review_state"]
+    review = cached_state.consolidated_review
+    summary = cached_state.summary
+    patch = cached_state.suggested_patch or (review.suggested_patch if review else None)
+
+    # Check if the user changed the input in the sidebar without running review
+    if raw_diff_text.strip() and raw_diff_text.strip() != st.session_state.get("last_diff_text", "").strip():
+        st.warning(
+            "⚠️ **Input Document Changed:** You have selected or uploaded a different document in the sidebar. "
+            "Click **'🚀 Run Team Review Now'** to analyze this new document!"
+        )
 
     if review:
         st.markdown("---")
         # Route to the selected perspective
         if "Technical" in view_mode:
-            render_technical_view(state, review, summary, patch)
+            render_technical_view(cached_state, review, summary, patch)
         else:
-            render_layman_view(state, review, summary, patch)
+            render_layman_view(cached_state, review, summary, patch)
