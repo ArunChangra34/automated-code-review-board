@@ -8,7 +8,13 @@ and technical inspection modes.
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
+
+# Ensure project root is in sys.path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import streamlit as st
 
@@ -100,7 +106,7 @@ SAMPLE_EXPLANATIONS = {
     "05_mixed_realistic.diff": "📦 Complex Multi-File PR (Real-world mix of bugs and security risks)",
 }
 
-samples_dir = Path("samples") / "diffs"
+samples_dir = ROOT_DIR / "samples" / "diffs"
 sample_files = sorted(samples_dir.glob("*.diff")) if samples_dir.exists() else []
 selected_sample = None
 uploaded_file = None
