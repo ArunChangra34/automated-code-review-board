@@ -38,20 +38,6 @@ st.markdown(
     """
     <style>
     .big-font { font-size: 1.15rem !important; line-height: 1.6; }
-    .verdict-box-approve {
-        background-color: #e8f5e9;
-        border-left: 6px solid #2e7d32;
-        padding: 1.2rem;
-        border-radius: 8px;
-        margin-bottom: 1rem;
-    }
-    .verdict-box-reject {
-        background-color: #ffebee;
-        border-left: 6px solid #c62828;
-        padding: 1.2rem;
-        border-radius: 8px;
-        margin-bottom: 1rem;
-    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -192,32 +178,19 @@ def render_layman_view(state, review, summary, patch):
 
     # Big Plain-English Decision Banner
     if is_approved:
-        st.markdown(
-            f"""
-            <div class="verdict-box-approve">
-                <h2 style="color: #2e7d32; margin-top:0;">✅ SAFE TO MERGE (Approved)</h2>
-                <p class="big-font">
-                    <strong>Great news!</strong> This code was thoroughly examined by all 4 review specialists and meets every safety and quality standard.
-                    There are <strong>zero dangerous vulnerabilities</strong> or blocking issues.
-                </p>
-                <p><em>Reason: {review.decision_reason}</em></p>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        st.success(
+            "### ✅ SAFE TO MERGE (Approved)\n\n"
+            "**Great news!** This code was thoroughly examined by all 4 review specialists and meets every safety and quality standard. "
+            "There are **zero dangerous vulnerabilities** or blocking issues.\n\n"
+            f"*Reason: {review.decision_reason}*"
         )
     else:
-        st.markdown(
-            f"""
-            <div class="verdict-box-reject">
-                <h2 style="color: #c62828; margin-top:0;">🛑 DO NOT MERGE YET (Changes Requested)</h2>
-                <p class="big-font">
-                    <strong>Hold on!</strong> The review board found <strong>{crit_count + high_count} serious blocker(s)</strong> that could break your application, leak private credentials, or invite hackers.
-                    These issues must be resolved before this code is merged into production.
-                </p>
-                <p><em>Why this decision: {review.decision_reason}</em></p>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        st.error(
+            "### 🛑 DO NOT MERGE YET (Changes Requested)\n\n"
+            f"**Hold on!** The review board found **{crit_count + high_count} serious blocker(s)** that could break your application, "
+            "leak private credentials, or introduce vulnerabilities.\n\n"
+            "These issues must be resolved before this code is merged into production.\n\n"
+            f"*Why this decision: {review.decision_reason}*"
         )
 
     # 4 Vital Scorecards
