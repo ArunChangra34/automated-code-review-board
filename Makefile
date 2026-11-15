@@ -22,7 +22,7 @@ install:
 lint:
 	$(PYTHON) -m ruff check core agents plugins cli reporting tests config
 	$(PYTHON) -m black --check core agents plugins cli reporting tests config
-	$(PYTHON) -m mypy core agents
+	$(PYTHON) -m mypy core agents plugins reporting cli
 
 format:
 	$(PYTHON) -m ruff check --fix core agents plugins cli reporting tests config
