@@ -72,7 +72,7 @@ class FixSuggestionAgent(BaseAgent):
             for idx, line in enumerate(lines):
                 # Match f-string query e.g. query = f"SELECT ... WHERE username = '{username}'"
                 m = re.search(
-                    r"""query\s*=\s*f['"]([^'"]*)\bWHERE\s+([a-zA-Z0-9_]+)\s*=\s*['"]\{([a-zA-Z0-9_]+)\}['"]['"]""",
+                    r"""query\s*=\s*f['"]([^'"]*)\bWHERE\s+([a-zA-Z0-9_]+)\s*=\s*['"]?\{([a-zA-Z0-9_]+)\}['"]?['"]""",
                     line,
                 )
                 if m:

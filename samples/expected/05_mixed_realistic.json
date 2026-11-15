@@ -1,0 +1,15 @@
+{
+  "sample": "05_mixed_realistic.diff",
+  "decision": "REQUEST_CHANGES",
+  "min_risk_score": 80,
+  "max_risk_score": 100,
+  "counts_by_severity": {
+    "CRITICAL": 2,
+    "HIGH": 5,
+    "MEDIUM": 2,
+    "LOW": 3,
+    "INFO": 2
+  },
+  "top_rule_id": "SEC-CMDI-001",
+  "patch_verdict": "VERIFIED"
+}

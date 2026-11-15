@@ -1,0 +1,15 @@
+{
+  "sample": "04_style_mess.diff",
+  "decision": "REQUEST_CHANGES",
+  "min_risk_score": 50,
+  "max_risk_score": 100,
+  "counts_by_severity": {
+    "CRITICAL": 0,
+    "HIGH": 5,
+    "MEDIUM": 2,
+    "LOW": 18,
+    "INFO": 0
+  },
+  "top_rule_id": "TST-UNTESTED-001",
+  "patch_verdict": null
+}

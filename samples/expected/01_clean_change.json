@@ -1,0 +1,15 @@
+{
+  "sample": "01_clean_change.diff",
+  "decision": "APPROVE",
+  "min_risk_score": 0,
+  "max_risk_score": 10,
+  "counts_by_severity": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 0,
+    "LOW": 0,
+    "INFO": 0
+  },
+  "top_rule_id": null,
+  "patch_verdict": null
+}

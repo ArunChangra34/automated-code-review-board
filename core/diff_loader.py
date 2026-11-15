@@ -10,8 +10,11 @@ from typing import Literal
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
+from core.logging_setup import get_logger
 from core.models import FileChange, HunkInfo, LineInfo
 from core.state import ChangeState
+
+logger = get_logger("diff_loader")
 
 _LANGUAGE_BY_EXT = {
     ".py": "python",
@@ -185,12 +188,28 @@ def normalize_diff_hunk_headers(diff_text: str) -> str:
     return "".join(new_lines)
 
 
-def parse_diff_text(raw_diff: str, source: str = "diff") -> tuple[list[FileChange], str]:
-    """Parse unified diff text into a list of FileChange models."""
+def parse_diff_text(
+    raw_diff: str, source: str = "diff", max_lines: int = 5000
+) -> tuple[list[FileChange], str]:
+    """Parse unified diff text into a list of FileChange models, truncating safely if excessive."""
     if not raw_diff or not raw_diff.strip():
         # Empty diff
         change_id = hashlib.sha256(b"empty").hexdigest()[:10]
         return [], change_id
+
+    diff_lines = raw_diff.splitlines(keepends=True)
+    if len(diff_lines) > max_lines:
+        logger.warning(
+            "Diff truncated: diff exceeds %d lines (total %d). Truncating safely.",
+            max_lines,
+            len(diff_lines),
+        )
+        cutoff = max_lines
+        for idx in range(max_lines - 1, 0, -1):
+            if diff_lines[idx].startswith("diff --git ") or diff_lines[idx].startswith("--- "):
+                cutoff = idx
+                break
+        raw_diff = "".join(diff_lines[:cutoff])
 
     # Compute stable change ID from diff content
     change_id = hashlib.sha256(raw_diff.encode("utf-8")).hexdigest()[:10]
@@ -205,10 +224,20 @@ def parse_diff_text(raw_diff: str, source: str = "diff") -> tuple[list[FileChang
         except UnidiffParseError as err:
             raise ValueError(f"Failed to parse unified diff: {err}") from err
 
+    if not patch_set and raw_diff.strip():
+        raise ValueError(
+            "Failed to parse unified diff: no valid file diffs or hunks found in input."
+        )
+
     file_changes: list[FileChange] = []
 
     for patched_file in patch_set:
-        path = patched_file.path
+        raw_path = patched_file.path
+        # Sanitise path against path traversal
+        clean_path = Path(raw_path).as_posix().lstrip("/").replace("../", "")
+        if not clean_path:
+            clean_path = "unnamed_file"
+        path = clean_path
         is_binary = getattr(patched_file, "is_binary_file", False)
 
         change_type: Literal["added", "modified", "deleted", "renamed"]
