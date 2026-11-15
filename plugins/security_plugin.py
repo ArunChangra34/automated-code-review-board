@@ -18,10 +18,16 @@ _GITHUB_TOKEN_RE = re.compile(r"\b(gh[pousr]_[0-9a-zA-Z]{30,})\b")
 _STRIPE_KEY_RE = re.compile(r"\b(sk_live_[0-9a-zA-Z]{20,})\b")
 _PRIVATE_KEY_RE = re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----")
 _PASSWORD_ASSIGN_RE = re.compile(r"""(?i)\b(?:password|passwd|pwd)\s*[:=]\s*['"]([^'"]{4,})['"]""")
-_API_KEY_ASSIGN_RE = re.compile(r"""(?i)\b(?:api_key|secret_key|access_token|admin_token|auth_token)\s*[:=]\s*['"]([^'"]{12,})['"]""")
+_API_KEY_ASSIGN_RE = re.compile(
+    r"""(?i)\b(?:api_key|secret_key|access_token|admin_token|auth_token)\s*[:=]\s*['"]([^'"]{12,})['"]"""
+)
 
-_SQLI_FSTRING_RE = re.compile(r"""(?i)f['"][^'"]*\b(select|insert\s+into|update|delete\s+from|drop\s+table)\b[^'"]*\{[^}]+\}""")
-_SQLI_CONCAT_RE = re.compile(r"""(?i)['"][^'"]*\b(select|insert\s+into|update|delete\s+from)\b[^'"]*['"]\s*\+""")
+_SQLI_FSTRING_RE = re.compile(
+    r"""(?i)f['"][^'"]*\b(select|insert\s+into|update|delete\s+from|drop\s+table)\b[^'"]*\{[^}]+\}"""
+)
+_SQLI_CONCAT_RE = re.compile(
+    r"""(?i)['"][^'"]*\b(select|insert\s+into|update|delete\s+from)\b[^'"]*['"]\s*\+"""
+)
 _CMDI_SHELL_RE = re.compile(r"\bshell\s*=\s*True\b")
 _CMDI_OS_SYSTEM_RE = re.compile(r"\bos\.system\s*\(")
 _DESER_PICKLE_RE = re.compile(r"\bpickle\.(?:loads?|Unpickler)\b")
@@ -31,7 +37,9 @@ _XSS_INNER_HTML_RE = re.compile(r"(\.innerHTML\s*=|dangerouslySetInnerHTML|docum
 _WEAK_HASH_RE = re.compile(r"\bhashlib\.(md5|sha1)\s*\(")
 _TLS_DISABLED_RE = re.compile(r"\bverify\s*=\s*False\b")
 _DEBUG_TRUE_RE = re.compile(r"\bDEBUG\s*=\s*True\b")
-_CORS_WILDCARD_RE = re.compile(r"""(?i)(allow_origins:\s*['"]?\*['"]?|Access-Control-Allow-Origin['"]?\s*[:=]\s*['"]?\*)""")
+_CORS_WILDCARD_RE = re.compile(
+    r"""(?i)(allow_origins:\s*['"]?\*['"]?|Access-Control-Allow-Origin['"]?\s*[:=]\s*['"]?\*)"""
+)
 
 
 def calculate_shannon_entropy(data: str) -> float:
@@ -277,7 +285,9 @@ class SecurityPlugin:
         str_literals = re.findall(r"""['"]([a-zA-Z0-9_\-+/=]{16,})['"]""", text)
         for literal in str_literals:
             entropy = calculate_shannon_entropy(literal)
-            if entropy >= self.settings.entropy_threshold and not literal.startswith(("http://", "https://", "schemas.")):
+            if entropy >= self.settings.entropy_threshold and not literal.startswith(
+                ("http://", "https://", "schemas.")
+            ):
                 citation = self._get_citation("SEC-SECRET-003")
                 return Finding(
                     id=Finding.generate_id(Category.SECURITY, "SEC-SECRET-003", file_path, line_no),
@@ -335,7 +345,11 @@ class SecurityPlugin:
         if _CMDI_SHELL_RE.search(text) or _CMDI_OS_SYSTEM_RE.search(text):
             citation = self._get_citation("SEC-CMDI-001")
             # Upgrade to CRITICAL if touching auth/payments risk areas
-            sev = Severity.CRITICAL if ("auth" in risk_areas or "payments" in risk_areas) else Severity.HIGH
+            sev = (
+                Severity.CRITICAL
+                if ("auth" in risk_areas or "payments" in risk_areas)
+                else Severity.HIGH
+            )
             findings.append(
                 Finding(
                     id=Finding.generate_id(Category.SECURITY, "SEC-CMDI-001", file_path, line_no),
@@ -527,7 +541,12 @@ class SecurityPlugin:
                     if not re.search(r"[=><~]", text):
                         findings.append(
                             Finding(
-                                id=Finding.generate_id(Category.SECURITY, "SEC-DEP-001", file_change.path, line.line_number),
+                                id=Finding.generate_id(
+                                    Category.SECURITY,
+                                    "SEC-DEP-001",
+                                    file_change.path,
+                                    line.line_number,
+                                ),
                                 category=Category.SECURITY,
                                 severity=Severity.LOW,
                                 title=f"Unpinned Dependency '{text}'",

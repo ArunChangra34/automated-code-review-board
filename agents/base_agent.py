@@ -68,9 +68,9 @@ class BaseAgent(ABC):
         await state.record_agent_start(self.name)
 
         # Check for simulated failure configuration
-        if (
-            self.settings.simulate_failure
-            and self.settings.simulate_failure.lower() == self.name.lower()
+        if self.settings.simulate_failure and (
+            self.settings.simulate_failure.lower() == self.name.lower()
+            or self.settings.simulate_failure.lower() == self.name.lower().replace("_agent", "")
         ):
             duration_ms = (time.perf_counter() - start_time) * 1000
             err_msg = f"Simulated fault injection failure triggered for {self.name}"

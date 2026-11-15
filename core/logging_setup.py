@@ -62,3 +62,22 @@ def setup_logger(name: str = "code_review_board", level: str = "INFO") -> loggin
 def get_logger(name: str = "code_review_board") -> logging.Logger:
     """Get an existing logger or create one with default settings."""
     return logging.getLogger(name)
+
+
+def configure_logging(level: str = "INFO") -> None:
+    """Configure root/application loggers with safe formatting."""
+    log_val = getattr(logging, level.upper(), logging.INFO)
+    root = logging.getLogger()
+    root.setLevel(log_val)
+    if not root.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setLevel(log_val)
+        formatter = SafeFormatter(
+            fmt="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+    else:
+        for h in root.handlers:
+            h.setLevel(log_val)

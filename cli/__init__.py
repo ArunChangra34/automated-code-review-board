@@ -1,1 +1,1 @@
-"""Command-line interface for the Automated Code Review Board."""
+"""CLI package for the Automated Code Review Board."""
