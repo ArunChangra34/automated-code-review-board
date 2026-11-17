@@ -61,6 +61,42 @@ class Settings(BaseSettings):
     max_function_lines: int = Field(default=60, description="Max allowed function length in lines")
     max_cyclomatic_complexity: int = Field(default=10, description="Max cyclomatic complexity")
 
+    # Fix-Suggestion behaviour
+    # "auto"   – produce fixes only when llm_enabled (LLM mode with a valid API key)
+    # "always" – also produce the rule-based template patch in offline mode
+    # "never"  – never produce any fix suggestions
+    fix_suggestions: Literal["auto", "always", "never"] = Field(
+        default="auto",
+        description=(
+            "Fix-suggestion policy: "
+            "'auto' (fixes when LLM available), "
+            "'always' (rule-based template patch even in offline mode), "
+            "'never' (no fixes at all)"
+        ),
+    )
+
+    # Maximum number of findings for which LLM fix calls are issued per review
+    fix_max_findings: int = Field(
+        default=10,
+        description="Maximum findings to generate LLM fix suggestions for per review",
+    )
+
+    # Concurrency cap for simultaneous LLM fix calls
+    fix_llm_concurrency: int = Field(
+        default=4,
+        description="Maximum concurrent LLM fix-generation calls",
+    )
+
+    @property
+    def llm_enabled(self) -> bool:
+        """True only when mode is 'llm' AND a non-empty API key has been configured."""
+        return self.mode == "llm" and bool(self.llm_api_key)
+
+    @property
+    def effective_mode(self) -> Literal["offline", "llm"]:
+        """Effective runtime mode: 'llm' only when llm_enabled, otherwise 'offline'."""
+        return "llm" if self.llm_enabled else "offline"
+
     def load_severity_policy(self) -> dict[str, Any]:
         """Load and parse the YAML severity policy."""
         policy_path = Path(self.severity_policy_path)

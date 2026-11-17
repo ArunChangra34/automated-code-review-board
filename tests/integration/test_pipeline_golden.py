@@ -32,7 +32,9 @@ async def test_sample_diff_against_golden_output(sample_name: str) -> None:
     expected_data = json.loads(expected_path.read_text(encoding="utf-8"))
 
     state = load_diff_from_file(diff_path)
-    orchestrator = ReviewOrchestrator()
+    from config.settings import Settings
+
+    orchestrator = ReviewOrchestrator(settings=Settings(fix_suggestions="always"))
     state = await orchestrator.run_review(state)
 
     review = state.consolidated_review

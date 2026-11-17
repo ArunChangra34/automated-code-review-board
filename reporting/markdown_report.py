@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.models import Finding, Severity
+from core.models import Finding, FixSuggestion, Severity
 from core.state import ChangeState
 from plugins.coverage_plugin import CoveragePlugin
 
@@ -14,6 +14,7 @@ def generate_markdown_report(state: ChangeState, mode: str = "offline") -> str:
     review = state.consolidated_review
     summary = state.summary
     patch = state.suggested_patch or (review.suggested_patch if review else None)
+    fix_suggestions: list[FixSuggestion] = state.fix_suggestions
 
     # 1. Header
     lines: list[str] = [
@@ -258,6 +259,81 @@ def generate_markdown_report(state: ChangeState, mode: str = "offline") -> str:
             lines.append("")
     else:
         lines.append("*No automated fix required or suggested for this changeset.*")
+        lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # 7b. Per-Finding Fix Suggestions (LLM-assisted)
+    lines.append("## Fix Suggestions (LLM-assisted)")
+    lines.append("")
+    if fix_suggestions:
+        lines.append(
+            f"The following {len(fix_suggestions)} fix suggestion(s) were generated and verified:"
+        )
+        lines.append("")
+        for sug in fix_suggestions:
+            verdict_badge = ""
+            if sug.verification:
+                verdict_badge = {
+                    "VERIFIED": " 🟢 **VERIFIED**",
+                    "PARTIAL": " 🟡 **PARTIAL**",
+                    "REJECTED": " 🔴 **REJECTED**",
+                }.get(sug.verification.verdict, "")
+            elif sug.kind == "new_file":
+                verdict_badge = " 🔵 *syntax-checked*"
+            elif sug.kind == "manual":
+                verdict_badge = " ⚪ *manual guidance*"
+
+            loc = (
+                f"`{sug.file_path}:{sug.line_start}-{sug.line_end}`"
+                if sug.line_start
+                else f"`{sug.file_path}`"
+            )
+            lines.append(
+                f"### Rank #{fix_suggestions.index(sug) + 1} `{sug.rule_id}` [{sug.severity.value}] — {loc}{verdict_badge}"
+            )
+            lines.append("")
+            lines.append(f"**Kind:** `{sug.kind}` | **Source:** `{sug.source}`")
+            lines.append("")
+            lines.append(f"**Explanation:** {sug.explanation}")
+            lines.append("")
+            if sug.unified_diff:
+                lines.append("```diff")
+                lines.append(sug.unified_diff)
+                lines.append("```")
+                lines.append("")
+            if sug.new_imports:
+                lines.append(
+                    f"**Required New Imports:** {', '.join(f'`{i}`' for i in sug.new_imports)}"
+                )
+                lines.append("")
+            if sug.followups:
+                lines.append("**Follow-up Actions:**")
+                for action in sug.followups:
+                    lines.append(f"- {action}")
+                lines.append("")
+            if sug.note:
+                lines.append(f"*Note: {sug.note}*")
+                lines.append("")
+    else:
+        # Explain why there are no suggestions
+        if mode == "offline":
+            lines.append(
+                "> Fix suggestions are available in LLM mode (`--mode llm` with `CRB_LLM_API_KEY` set). "
+                "In offline mode only the template patch for the top finding is produced "
+                "(when `CRB_FIX_SUGGESTIONS=always`)."
+            )
+        else:
+            agent_res = state.agent_results.get("fix_suggestion_agent")
+            if agent_res and agent_res.status == "degraded":
+                lines.append(
+                    f"> LLM fix generation was attempted but all calls failed: {agent_res.error or 'unknown error'}."
+                )
+            else:
+                lines.append(
+                    "> No LLM fix suggestions were generated for this changeset "
+                    "(no eligible findings or agent not run)."
+                )
         lines.append("")
     lines.append("---")
     lines.append("")

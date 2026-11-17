@@ -21,6 +21,22 @@ from core.state import ChangeState
 logger = get_logger("orchestrator")
 
 
+def should_suggest_fixes(settings: Settings) -> bool:
+    """Return True when the fix-suggestion stage should run.
+
+    - fix_suggestions='never'  → always False
+    - fix_suggestions='auto'   → True only when LLM is enabled (mode=llm + API key present)
+    - fix_suggestions='always' → True in all modes (offline uses template patch only)
+    """
+    policy = settings.fix_suggestions
+    if policy == "never":
+        return False
+    if policy == "always":
+        return True
+    # 'auto'
+    return settings.llm_enabled
+
+
 class ReviewOrchestrator:
     """Coordinates fan-out execution of specialist agents and fan-in manager synthesis."""
 
@@ -70,15 +86,29 @@ class ReviewOrchestrator:
         )
         await self.manager.run(state)
 
-        # Stage 3: Fix-Suggestion Agent (if present and rank-1 finding exists)
-        if (
-            self.fix_agent
-            and state.consolidated_review
-            and state.consolidated_review.priority_order
-        ):
-            top_finding = state.consolidated_review.priority_order[0]
-            logger.info("Running Fix-Suggestion Agent on rank-1 finding: %s", top_finding.id)
+        # Stage 3: Fix-Suggestion Agent (gated by policy and rank-1 finding existence)
+        run_fixes = (
+            should_suggest_fixes(self.settings)
+            and self.fix_agent is not None
+            and state.consolidated_review is not None
+            and bool(state.consolidated_review.priority_order)
+        )
+        if run_fixes:
+            top_finding = state.consolidated_review.priority_order[0]  # type: ignore[union-attr]
+            logger.info(
+                "Fix-Suggestion stage enabled (policy=%s, effective_mode=%s). "
+                "Running on rank-1 finding: %s",
+                self.settings.fix_suggestions,
+                self.settings.effective_mode,
+                top_finding.id,
+            )
             await self.fix_agent.run(state)
+        else:
+            logger.info(
+                "Fix-Suggestion stage skipped (policy=%s, effective_mode=%s).",
+                self.settings.fix_suggestions,
+                self.settings.effective_mode,
+            )
 
         logger.info(
             "Review completed for %s. Decision: %s, Score: %s/100",

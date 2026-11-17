@@ -27,6 +27,7 @@ def generate_json_report(state: ChangeState, indent: int = 2) -> str:
         "suggested_patch": (
             state.suggested_patch.model_dump(mode="json") if state.suggested_patch else None
         ),
+        "fix_suggestions": [s.model_dump(mode="json") for s in state.fix_suggestions],
     }
 
     return json.dumps(snapshot, indent=indent, default=str)

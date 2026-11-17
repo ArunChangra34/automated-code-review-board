@@ -9,7 +9,9 @@ from core.orchestrator import ReviewOrchestrator
 @pytest.mark.asyncio
 async def test_sample_02_generates_verified_patch_for_rank_1_finding():
     """Exit check: sample 02's top finding gets a VERIFIED patch and verification details."""
-    orchestrator = ReviewOrchestrator()
+    from config.settings import Settings
+
+    orchestrator = ReviewOrchestrator(settings=Settings(fix_suggestions="always"))
     state = load_diff_from_file("samples/diffs/02_sql_injection_and_secret.diff")
 
     await orchestrator.run_review(state)

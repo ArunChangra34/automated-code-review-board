@@ -175,6 +175,8 @@ sequenceDiagram
 ### Safety Guarantees:
 - **Zero Disk Mutation:** Patches are applied to in-memory buffers; original repository files are never modified.
 - **Differential Precision:** Rather than naive absolute re-review, the engine compares pre-patch findings with post-patch findings on the virtual file, ensuring pre-existing issues in untouched lines do not trigger false-positive patch rejections.
+- **Count-Based Multi-Fix Resolution:** When a file has multiple occurrences of the same rule (e.g. several unparameterized queries or missing docstrings), repairing one instance reduces the finding count and registers as verified without false rejection.
+- **Mode-Gated Execution:** In offline mode (`CRB_FIX_SUGGESTIONS=auto`), analysis runs without fix suggestions. In LLM mode (`CRB_MODE=llm` with API key), concurrent per-finding fix suggestions are generated, syntax-checked, verified, and displayed alongside honest status notes (`VERIFIED`, `syntax-checked only`, or `manual guidance`). Setting `CRB_FIX_SUGGESTIONS=always` enables the deterministic template patch in offline mode.
 
 ---
 

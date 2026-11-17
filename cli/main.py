@@ -121,6 +121,14 @@ def review(
     if simulate_failure:
         settings.simulate_failure = simulate_failure
 
+    # Warn clearly when LLM mode was requested but no API key is configured
+    if mode.lower() == "llm" and not settings.llm_api_key:
+        console.print(
+            "[bold yellow]Warning:[/bold yellow] LLM mode requested but no API key found "
+            "(CRB_LLM_API_KEY is not set); running in offline mode, "
+            "no LLM fix suggestions will be generated."
+        )
+
     # 3. Execution
     orchestrator = ReviewOrchestrator(
         settings=settings,
@@ -141,7 +149,7 @@ def review(
     written_files: list[Path] = []
     if fmt in ("md", "both"):
         md_path = target_dir / "review.md"
-        md_content = generate_markdown_report(state, mode=settings.mode)
+        md_content = generate_markdown_report(state, mode=settings.effective_mode)
         md_path.write_text(md_content, encoding="utf-8")
         written_files.append(md_path)
 

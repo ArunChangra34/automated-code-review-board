@@ -84,9 +84,15 @@ This document details the functional contract, inputs, outputs, and rule IDs for
 
 ### 2.2 Fix-Suggestion Agent
 - **Module:** `agents/fix_suggestion_agent.py`
-- **Role:** Synthesis and verification of automated remediation patch for rank-1 finding.
-- **Input:** `state.consolidated_review.priority_order[0]`, `state.files`, `state.raw_diff`.
-- **Output:** `ChangeState.suggested_patch` (`SuggestedPatch`) with `PatchVerification`.
+- **Role:** Synthesis and machine verification of automated remediation patches for review findings.
+- **Input:** `state.consolidated_review.priority_order`, `state.files`, `state.raw_diff`.
+- **Output:**
+  - `ChangeState.suggested_patch` (`SuggestedPatch | None`): Concrete patch for the top finding.
+  - `ChangeState.fix_suggestions` (`list[FixSuggestion]`): Priority-ordered list of verified suggestions (or manual guidance) for eligible findings.
+- **Modes of Operation:**
+  - `offline` mode: Produces no fixes by default (`CRB_FIX_SUGGESTIONS=auto`); produces the rule-based template patch for the rank-1 finding if `CRB_FIX_SUGGESTIONS=always`.
+  - `llm` mode (with `CRB_LLM_API_KEY`): Generates per-finding structured replacements via LLM, applies patches to virtual in-memory buffers, runs differential re-review, and emits `FixSuggestion` objects with verified diffs or manual guidance notes.
+  - Gated by `should_suggest_fixes(settings)`.
 
 ---
 

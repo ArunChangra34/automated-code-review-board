@@ -13,9 +13,11 @@ from reporting.markdown_report import generate_markdown_report
 @pytest.mark.asyncio
 async def test_markdown_report_sections():
     """Verify that generated markdown contains all required sections from spec §10."""
+    from config.settings import Settings
+
     diff_path = Path("samples/diffs/02_sql_injection_and_secret.diff")
     state = load_diff_from_file(diff_path)
-    orchestrator = ReviewOrchestrator()
+    orchestrator = ReviewOrchestrator(settings=Settings(fix_suggestions="always"))
     state = await orchestrator.run_review(state)
 
     md = generate_markdown_report(state, mode="offline")

@@ -94,3 +94,42 @@ echo $?  # Outputs 0
 python -m cli.main review --diff samples/diffs/02_sql_injection_and_secret.diff --fail-on-request-changes
 echo $?  # Outputs 1
 ```
+
+---
+
+## Step 6: Demonstrate Offline vs LLM Mode & Safe No-Key Fallback (45 seconds)
+
+### 1. Offline Mode (Analysis Only):
+```bash
+python -m cli.main review --diff samples/diffs/02_sql_injection_and_secret.diff --mode offline
+```
+Notice:
+- Header shows `Review Mode: offline`.
+- Comprehensive deterministic review findings, coverage map, and decision are produced in <100ms.
+- Fix suggestions section clearly indicates fixes are available in LLM mode.
+
+### 2. LLM Mode with No Key (Safe Fallback):
+```bash
+python -m cli.main review --diff samples/diffs/02_sql_injection_and_secret.diff --mode llm
+```
+Notice:
+- Clear yellow warning is printed: `Warning: LLM mode requested but no API key found...`
+- Effective mode safely falls back to `offline`.
+- Review completes successfully with zero crashes.
+
+---
+
+## Step 7: Demonstrate LLM Fix Suggestions with a Mocked Model (45 seconds)
+
+When no live API key is configured, demonstrate the full LLM per-finding fix suggestion and verification flow using the test suite mock:
+
+```bash
+python -m pytest tests/unit/test_fix_suggestions_feature.py -k test_llm_mocked_valid_replace_suggestion_verified -v
+```
+
+### What this demonstrates:
+- One structured LLM call per finding executed with bounded concurrency (`asyncio.Semaphore`).
+- The model proposes a structured line replacement dictionary (`{"kind": "replace", "start_line": ..., "end_line": ...}`).
+- The system builds a unified diff with real line numbers and runs the **Patch Verification Loop**.
+- Returns status `VERIFIED` and attaches the verified patch to the review output.
+- If invalid JSON is returned or an unsafe patch is proposed, the system safely downgrades to `manual` guidance and clears the diff.

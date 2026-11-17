@@ -162,8 +162,13 @@ def verify_patch(
     pre_rule_ids = {f.rule_id for f in pre_findings}
     post_rule_ids = {f.rule_id for f in post_findings}
 
-    # Step 4: Check if original finding resolved
-    original_resolved = finding.rule_id not in post_rule_ids
+    # Count occurrences of the target rule in pre and post findings
+    pre_rule_count = sum(1 for f in pre_findings if f.rule_id == finding.rule_id)
+    post_rule_count = sum(1 for f in post_findings if f.rule_id == finding.rule_id)
+
+    # Step 4: Check if original finding resolved.
+    # Resolved means: rule absent entirely, OR its count decreased (partial fix counts).
+    original_resolved = (finding.rule_id not in post_rule_ids) or (post_rule_count < pre_rule_count)
 
     # Step 5: Check for newly introduced findings
     new_findings = [f for f in post_findings if f.rule_id not in pre_rule_ids]

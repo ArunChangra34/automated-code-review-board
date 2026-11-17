@@ -14,6 +14,7 @@ from core.models import (
     ConsolidatedReview,
     FileChange,
     Finding,
+    FixSuggestion,
     SuggestedPatch,
     TimelineEvent,
 )
@@ -46,6 +47,12 @@ class ChangeState(BaseModel):
     )
     suggested_patch: SuggestedPatch | None = Field(
         default=None, description="Proposed verified fix for top finding"
+    )
+
+    # Per-finding fix suggestions (populated by FixSuggestionAgent in LLM/always mode)
+    fix_suggestions: list[FixSuggestion] = Field(
+        default_factory=list,
+        description="Fix suggestions for each eligible finding, in priority order",
     )
 
     # Timeline of concurrent events
@@ -100,6 +107,13 @@ class ChangeState(BaseModel):
             self.suggested_patch = patch
             if self.consolidated_review:
                 self.consolidated_review.suggested_patch = patch
+
+    async def set_fix_suggestions(self, suggestions: list[FixSuggestion]) -> None:
+        """Set the full list of per-finding fix suggestions."""
+        async with self._lock:
+            self.fix_suggestions = suggestions
+            if self.consolidated_review:
+                self.consolidated_review.fix_suggestions = suggestions
 
     def get_snapshot(self) -> dict[str, Any]:
         """Get a read-only dictionary snapshot of the current state."""

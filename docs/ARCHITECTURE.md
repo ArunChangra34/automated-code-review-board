@@ -89,7 +89,23 @@ Review pipelines must never crash due to an individual agent's failure:
 
 ## 6. Novelty: Patch Verification Loop ("Fix-and-Re-Review")
 
-Rather than emitting unverified code suggestions, the system validates proposed fixes before presentation:
+Rather than emitting unverified code suggestions, the system validates proposed fixes before presentation.
+
+### Stage 3 Gating (`should_suggest_fixes`)
+Stage 3 execution is gated through `should_suggest_fixes(settings)`:
+- `CRB_FIX_SUGGESTIONS=never`: The fix stage is completely bypassed; `state.suggested_patch` and `state.fix_suggestions` remain empty.
+- `CRB_FIX_SUGGESTIONS=auto` *(default)*: Active only when `settings.llm_enabled` is True (`mode="llm"` with an API key). In offline mode, analysis runs without fix suggestions.
+- `CRB_FIX_SUGGESTIONS=always`: Generates the rule-based template patch for the rank-1 finding even in offline mode.
+
+### LLM Fix Generation Flow
+In LLM mode with an API key:
+1. **Candidate Selection**: Takes non-DIFF, non-INFO findings from `priority_order` up to `CRB_FIX_MAX_FINDINGS`.
+2. **Concurrent Bounded Invocations**: Issues one call per finding using `asyncio.Semaphore(fix_llm_concurrency)`.
+3. **Structured Prompting**: Includes rule ID, severity, recommendation, redacted code snippet, relevant added lines with real line numbers, and grounded knowledge base recipes. Prompts model for strict JSON (`replace`, `new_file`, or `manual`).
+4. **Validation & In-Memory Verification**:
+   - For `replace`: verifies line numbers are added lines in the diff, applies patch to virtual buffer, validates AST syntax, and executes differential re-review with count-based resolution.
+   - For `new_file`: checks syntax of new file against `/dev/null` (e.g. test files), marked `syntax-checked only`.
+   - On rejection or syntax error: diff is cleared and recorded as manual guidance.
 
 ```mermaid
 sequenceDiagram
@@ -97,6 +113,30 @@ sequenceDiagram
     participant FSA as Fix-Suggestion Agent
     participant PT as Patch Tools (In-Memory)
     participant Verif as Style & Security Verifiers
+
+    RM->>FSA: Eligible Findings (Ranked Priority Order)
+    par Bounded Concurrency per Finding
+        FSA->>FSA: Request Line Replacement JSON / Template
+        FSA->>PT: Apply Patch In-Memory (Virtual Buffer)
+        alt Clean Application
+            PT->>PT: Validate Syntax (ast.parse / json / yaml)
+            alt Syntax Valid
+                PT->>Verif: Differential Re-Review (Style & Security)
+                alt Original Finding Resolved & No New High/Critical Issues
+                    Verif-->>FSA: Verdict: VERIFIED
+                else Minor Style Issues Introduced
+                    Verif-->>FSA: Verdict: PARTIAL
+                else Original Issue Persists or Critical Issues Added
+                    Verif-->>FSA: Verdict: REJECTED (Downgrade to Manual Guidance)
+                end
+            else Syntax Error
+                PT-->>FSA: Verdict: REJECTED (Syntax Error)
+            end
+        else Context Mismatch
+            PT-->>FSA: Verdict: REJECTED (Hunk Mismatch)
+        end
+    end
+```
 
     RM->>FSA: Highest-Severity Finding (Rank #1)
     FSA->>FSA: Generate Unified Diff Template Patch

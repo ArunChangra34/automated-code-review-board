@@ -37,7 +37,7 @@ class BaseAgent(ABC):
         self.kernel = kernel
         self.settings = settings or get_settings()
         self.logger = get_logger(f"agent.{name}")
-        self.mode: Literal["offline", "llm"] = self.settings.mode
+        self.mode: Literal["offline", "llm"] = self.settings.effective_mode
         self.timeout_seconds: float = self.settings.agent_timeout_seconds
 
         # Register plugins with Kernel if provided
@@ -142,7 +142,7 @@ class BaseAgent(ABC):
             )
 
         # Step 2: LLM augmentation (if configured and in llm mode)
-        if self.mode == "llm" and self.settings.llm_api_key:
+        if self.settings.llm_enabled:
             try:
                 augmented_findings = await self._augment_with_llm(state, findings)
                 findings = augmented_findings

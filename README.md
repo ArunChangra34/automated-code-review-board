@@ -47,6 +47,22 @@ flowchart TD
 
 ---
 
+## Execution Modes & Fix Suggestions
+
+| Mode | Capability | Fix Suggestions Policy | Network / API Key |
+| :--- | :--- | :--- | :--- |
+| **`offline`** *(default)* | Fast deterministic analysis (summary, findings, priority order, test coverage, merge recommendation). | **Analysis only.** No fix suggestions produced by default (`CRB_FIX_SUGGESTIONS=auto`). Setting `CRB_FIX_SUGGESTIONS=always` enables rule-based template patch for rank-1 finding. | None. Fully local and completes in <100ms. |
+| **`llm`** | Full deterministic analysis **plus** semantic LLM augmentation and LLM-written fix suggestions for eligible findings. | Generates per-finding structured line replacements, verified by the in-memory **Patch Verification Loop**. | Requires valid `CRB_LLM_API_KEY`. |
+
+> **No-Key Safe Fallback:** If `--mode llm` is requested but no API key is configured (`CRB_LLM_API_KEY` is missing), the system prints a prominent warning and safely executes in `offline` mode. Reports and UI display effective mode `offline`.
+
+### Fix Suggestion Policies (`CRB_FIX_SUGGESTIONS`)
+- `auto` *(default)*: Fix suggestions are only generated when LLM mode is active and an API key is present (`llm_enabled=True`).
+- `always`: Enables the rule-based deterministic template patch for the rank-1 finding even in offline mode.
+- `never`: Completely disables the fix-suggestion stage across all modes.
+
+---
+
 ## Key Features
 
 1. **Deterministic Offline Mode & Model-Augmented LLM Mode:**
@@ -173,6 +189,9 @@ Settings can be specified in `config/severity_policy.yaml` or overridden via env
 | `CRB_SEVERITY_POLICY_PATH` | `config/severity_policy.yaml` | Path to severity policy configuration |
 | `CRB_ENTROPY_THRESHOLD` | `4.3` | Shannon entropy cutoff for high-entropy secret detection |
 | `CRB_MAX_LINE_LENGTH` | `100` | Maximum allowed line length for style check |
+| `CRB_FIX_SUGGESTIONS` | `auto` | Fix policy: `auto` (LLM-only), `always` (offline template too), `never` |
+| `CRB_FIX_MAX_FINDINGS` | `10` | Maximum findings to issue LLM fix calls for per review |
+| `CRB_FIX_LLM_CONCURRENCY` | `4` | Maximum concurrent LLM fix calls |
 
 ---
 

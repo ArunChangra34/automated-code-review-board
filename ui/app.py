@@ -357,6 +357,8 @@ def render_layman_view(state, review, summary, patch):
             Most tools only complain about problems. **Our system actually writes a fix, applies it in a safe memory sandbox,
             and tests it to prove that it eliminates the flaw without introducing any new bugs!**
             """)
+        settings = get_settings()
+
         if patch:
             verif = patch.verification
             if verif and verif.verdict == "VERIFIED":
@@ -400,10 +402,35 @@ def render_layman_view(state, review, summary, patch):
                 st.markdown("**Next Steps for Developers:**")
                 for act in patch.followups:
                     st.markdown(f"- {act}")
-        else:
-            st.info(
-                "✨ No critical automated repairs were required for this changeset. All looks smooth!"
-            )
+
+        # Per-finding fix suggestions (LLM mode)
+        if state.fix_suggestions:
+            st.markdown("---")
+            st.markdown(f"#### 💡 {len(state.fix_suggestions)} Automated Fix Suggestion(s)")
+            for idx, sug in enumerate(state.fix_suggestions, start=1):
+                badge = (
+                    "✅ Verified Fix"
+                    if (sug.verification and sug.verification.verdict == "VERIFIED")
+                    else ("ℹ️ Manual Guidance" if sug.kind == "manual" else "🧪 Syntax Checked")
+                )
+                with st.expander(
+                    f"Suggestion #{idx}: {sug.rule_id} ({sug.file_path or 'file'}) — {badge}"
+                ):
+                    st.write(f"**Explanation:** {sug.explanation}")
+                    if sug.unified_diff:
+                        st.code(sug.unified_diff, language="diff")
+                    if sug.note:
+                        st.caption(f"Note: {sug.note}")
+        elif not patch:
+            if settings.effective_mode == "offline":
+                st.info(
+                    "ℹ️ Automated fix suggestions are available in LLM mode (`--mode llm` with an API key configured). "
+                    "In offline mode, only analysis is performed."
+                )
+            else:
+                st.info(
+                    "✨ No critical automated repairs were required for this changeset. All looks smooth!"
+                )
 
     # Tab 4: Safety Tests Checkup
     with tab_testing:
@@ -520,7 +547,8 @@ def render_layman_view(state, review, summary, patch):
     # Tab 6: Downloads
     with tab_downloads:
         st.subheader("📥 Export & Share Official Review Reports")
-        md_content = generate_markdown_report(state, mode=execution_mode)
+        settings = get_settings()
+        md_content = generate_markdown_report(state, mode=settings.effective_mode)
         json_content = generate_json_report(state)
         d1, d2 = st.columns(2)
         with d1:
@@ -619,6 +647,7 @@ def render_technical_view(state, review, summary, patch):
     # Technical Tab 2: Suggested Verified Patch
     with tab_patch:
         st.subheader("Automated Fix for Highest-Severity Finding")
+        settings = get_settings()
         if patch:
             verif = patch.verification
             if verif:
@@ -646,8 +675,62 @@ def render_technical_view(state, review, summary, patch):
                     st.write("**Follow-up Actions Required:**")
                     for action in patch.followups:
                         st.write(f"- {action}")
-        else:
-            st.info("No automated remediation patch required or synthesized for this changeset.")
+
+        # Per-finding fix suggestions (LLM mode)
+        if state.fix_suggestions:
+            st.markdown("---")
+            st.subheader("🧩 Fix Suggestions (LLM-Assisted)")
+            st.caption(
+                f"{len(state.fix_suggestions)} suggestion(s) generated for detected findings."
+            )
+            for idx, sug in enumerate(state.fix_suggestions, start=1):
+                badge = (
+                    "🟢 VERIFIED"
+                    if (sug.verification and sug.verification.verdict == "VERIFIED")
+                    else (
+                        "🟡 PARTIAL"
+                        if (sug.verification and sug.verification.verdict == "PARTIAL")
+                        else (
+                            "🔴 REJECTED"
+                            if (sug.verification and sug.verification.verdict == "REJECTED")
+                            else (
+                                "🔵 syntax-checked"
+                                if sug.kind == "new_file"
+                                else "⚪ manual guidance"
+                            )
+                        )
+                    )
+                )
+                loc = (
+                    f"{sug.file_path}:{sug.line_start}"
+                    if sug.line_start
+                    else (sug.file_path or "-")
+                )
+                with st.expander(
+                    f"Fix #{idx}: `{sug.rule_id}` [{sug.severity.value}] ({loc}) — {badge}"
+                ):
+                    st.write(f"**Kind:** `{sug.kind}` | **Source:** `{sug.source}`")
+                    st.write(f"**Explanation:** {sug.explanation}")
+                    if sug.unified_diff:
+                        st.code(sug.unified_diff, language="diff")
+                    if sug.new_imports:
+                        st.write(f"**New Imports:** {', '.join(f'`{i}`' for i in sug.new_imports)}")
+                    if sug.followups:
+                        st.write("**Follow-up Actions:**")
+                        for act in sug.followups:
+                            st.write(f"- {act}")
+                    if sug.note:
+                        st.caption(f"Note: {sug.note}")
+        elif not patch:
+            if settings.effective_mode == "offline":
+                st.info(
+                    "ℹ️ Fix suggestions are available in LLM mode (`--mode llm` with an API key configured). "
+                    "In offline mode, automated fixes are disabled."
+                )
+            else:
+                st.info(
+                    "No automated remediation patch required or synthesized for this changeset."
+                )
 
     # Technical Tab 3: Test Coverage
     with tab_coverage:
@@ -708,7 +791,8 @@ def render_technical_view(state, review, summary, patch):
     # Technical Tab 6: Export Reports
     with tab_export:
         st.subheader("Download Generated Artifacts")
-        md_content = generate_markdown_report(state, mode=execution_mode)
+        settings = get_settings()
+        md_content = generate_markdown_report(state, mode=settings.effective_mode)
         json_content = generate_json_report(state)
 
         c_md, c_json = st.columns(2)
@@ -738,7 +822,9 @@ if run_button and raw_diff_text.strip():
     settings.mode = execution_mode
 
     try:
-        with st.spinner("Executing concurrent specialist agents (Diff, Style, Security, Coverage)..."):
+        with st.spinner(
+            "Executing concurrent specialist agents (Diff, Style, Security, Coverage)..."
+        ):
             state = load_diff_from_stdin(raw_diff_text)
             orchestrator = ReviewOrchestrator(settings=settings)
             state = asyncio.run(orchestrator.run_review(state))
@@ -760,7 +846,10 @@ if "review_state" in st.session_state and st.session_state["review_state"]:
     patch = cached_state.suggested_patch or (review.suggested_patch if review else None)
 
     # Check if the user changed the input in the sidebar without running review
-    if raw_diff_text.strip() and raw_diff_text.strip() != st.session_state.get("last_diff_text", "").strip():
+    if (
+        raw_diff_text.strip()
+        and raw_diff_text.strip() != st.session_state.get("last_diff_text", "").strip()
+    ):
         st.warning(
             "⚠️ **Input Document Changed:** You have selected or uploaded a different document in the sidebar. "
             "Click **'🚀 Run Team Review Now'** to analyze this new document!"

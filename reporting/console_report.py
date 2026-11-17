@@ -20,6 +20,7 @@ def print_console_report(state: ChangeState, console: Console | None = None) -> 
     review = state.consolidated_review
     summary = state.summary
     patch = state.suggested_patch or (review.suggested_patch if review else None)
+    fix_suggestions = state.fix_suggestions
 
     # 1. Header Banner
     console.print()
@@ -190,6 +191,70 @@ def print_console_report(state: ChangeState, console: Console | None = None) -> 
             )
         )
         console.print()
+
+    # 6b. Fix Suggestions Table (LLM-assisted)
+    if fix_suggestions:
+        fix_table = Table(
+            title="Fix Suggestions (LLM-Assisted)",
+            box=ROUNDED,
+            header_style="bold green",
+        )
+        fix_table.add_column("Rank", justify="right", width=6)
+        fix_table.add_column("Rule ID", style="cyan", width=14)
+        fix_table.add_column("Location", style="dim", width=22)
+        fix_table.add_column("Kind", justify="center", width=10)
+        fix_table.add_column("Verdict", justify="center", width=14)
+        fix_table.add_column("Note / Details")
+
+        for idx, sug in enumerate(fix_suggestions, 1):
+            loc = (
+                f"{sug.file_path}:{sug.line_start}"
+                if sug.file_path and sug.line_start
+                else (sug.file_path or "-")
+            )
+            verdict_text = Text()
+            if sug.verification:
+                v = sug.verification.verdict
+                if v == "VERIFIED":
+                    verdict_text = Text(v, style="bold green")
+                elif v == "PARTIAL":
+                    verdict_text = Text(v, style="bold yellow")
+                else:
+                    verdict_text = Text(v, style="bold red")
+            elif sug.kind == "new_file":
+                verdict_text = Text("syntax-only", style="cyan")
+            elif sug.kind == "manual":
+                verdict_text = Text("manual", style="dim")
+            else:
+                verdict_text = Text("-", style="dim")
+
+            note_text = sug.note or sug.explanation[:60]
+            fix_table.add_row(
+                str(idx),
+                sug.rule_id,
+                loc,
+                sug.kind,
+                verdict_text,
+                note_text,
+            )
+
+        console.print(fix_table)
+        console.print()
+
+        # Print panel per verified diff
+        for idx, sug in enumerate(fix_suggestions, 1):
+            if sug.unified_diff and sug.verification and sug.verification.verdict == "VERIFIED":
+                diff_syntax = Syntax(sug.unified_diff, "diff", theme="monokai", line_numbers=False)
+                console.print(
+                    Panel(
+                        diff_syntax,
+                        title=f"[bold green]Verified Fix #{idx}: {sug.rule_id}[/bold green]",
+                        subtitle=sug.file_path,
+                        border_style="green",
+                        box=ROUNDED,
+                    )
+                )
+                console.print()
 
     # 7. Agent Execution & Timeline Table
     exec_table = Table(title="Agent Execution & Concurrency Timeline", box=ROUNDED)
