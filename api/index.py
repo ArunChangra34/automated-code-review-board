@@ -758,11 +758,30 @@ async def serve_index(request: Request) -> HTMLResponse:
 
 
 routes = [
+    # Primary UI routes & aliases
     Route("/", endpoint=serve_index, methods=["GET"]),
+    Route("/api", endpoint=serve_index, methods=["GET"]),
+    Route("/api/index", endpoint=serve_index, methods=["GET"]),
+    Route("/api/index.py", endpoint=serve_index, methods=["GET"]),
+    # Health checks
+    Route("/health", endpoint=health, methods=["GET"]),
     Route("/api/health", endpoint=health, methods=["GET"]),
+    Route("/api/index/health", endpoint=health, methods=["GET"]),
+    # Scenarios list
+    Route("/scenarios", endpoint=list_scenarios, methods=["GET"]),
     Route("/api/scenarios", endpoint=list_scenarios, methods=["GET"]),
+    Route("/api/index/scenarios", endpoint=list_scenarios, methods=["GET"]),
+    # Sample files
+    Route("/sample/{filename}", endpoint=get_sample, methods=["GET"]),
     Route("/api/sample/{filename}", endpoint=get_sample, methods=["GET"]),
+    Route("/api/index/sample/{filename}", endpoint=get_sample, methods=["GET"]),
+    # Review analysis API
+    Route("/review", endpoint=run_review_api, methods=["POST"]),
     Route("/api/review", endpoint=run_review_api, methods=["POST"]),
+    Route("/api/index/review", endpoint=run_review_api, methods=["POST"]),
+    Route("/api/index/api/review", endpoint=run_review_api, methods=["POST"]),
+    # Catch-all fallback for any GET route to serve the web UI
+    Route("/{path:path}", endpoint=serve_index, methods=["GET"]),
 ]
 
 app = Starlette(routes=routes)
