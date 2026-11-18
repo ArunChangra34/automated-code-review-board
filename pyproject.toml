@@ -20,6 +20,13 @@ dependencies = [
     "starlette>=0.30.0",
 ]
 
+[tool.setuptools]
+packages = ["agents", "api", "cli", "config", "core", "knowledge_base", "plugins", "reporting", "ui"]
+py-modules = ["app", "main"]
+
+[tool.setuptools.package-data]
+"*" = ["*.diff", "*.yaml", "*.json", "*.html"]
+
 [tool.vercel]
 entrypoint = "api.index:app"
 
