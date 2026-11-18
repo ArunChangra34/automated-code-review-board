@@ -142,7 +142,17 @@ class BaseAgent(ABC):
             )
 
         # Step 2: LLM augmentation (if configured and in llm mode)
-        if self.settings.llm_enabled:
+        # Specialist analysis and manager decision stay 100% deterministic rule-based per spec.
+        # FixSuggestionAgent (and custom agents) use LLM augmentation for patches.
+        _deterministic_agents = {
+            "diff_agent",
+            "style_agent",
+            "security_agent",
+            "test_coverage_agent",
+            "reviewer_manager",
+            "test_specialist",
+        }
+        if self.settings.llm_enabled and self.name not in _deterministic_agents:
             try:
                 augmented_findings = await self._augment_with_llm(state, findings)
                 findings = augmented_findings
@@ -167,25 +177,20 @@ class BaseAgent(ABC):
         self, state: ChangeState, existing_findings: list[Finding]
     ) -> list[Finding]:
         """Invoke Semantic Kernel agent to semantically analyze diff and return validated findings."""
-        # Formulate token-optimized prompt containing compact diff and existing findings summary
-        diff_snippet = state.raw_diff[:4000]  # Cap diff to prevent context bloat
+        # Token-optimized: cap diff to 2000 chars, compact findings to rule+file only
+        diff_snippet = state.raw_diff[:2000]
         findings_summary = [
-            {
-                "id": f.id,
-                "rule": f.rule_id,
-                "title": f.title,
-                "file": f.file_path,
-                "line": f.line_start,
-            }
+            {"rule": f.rule_id, "file": f.file_path, "line": f.line_start}
             for f in existing_findings
         ]
 
         prompt = (
-            f"Review the following diff as {self.name} ({self.category.value}).\n"
-            f"Existing deterministic findings: {json.dumps(findings_summary)}\n\n"
-            f"Diff:\n{diff_snippet}\n\n"
-            "Return a JSON array of findings adhering to the Finding schema. "
-            "Output strictly valid JSON with no markdown wrapping or extra prose."
+            f"Agent:{self.name} Category:{self.category.value}\n"
+            f"Findings:{json.dumps(findings_summary, separators=(',', ':'))}\n"
+            f"Diff:\n{diff_snippet}\n"
+            "Reply ONLY with a JSON array of additional findings (empty [] if none). "
+            "Schema per item: rule_id,severity(CRITICAL/HIGH/MEDIUM/LOW/INFO),title,description,file_path,line_start. "
+            "No markdown, no prose."
         )
 
         # Attempt invocation with one retry for JSON validation

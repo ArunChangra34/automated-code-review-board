@@ -40,6 +40,8 @@ coverage.json
 .vscode/
 *.swp
 *.swo
+.DS_Store
+*/.DS_Store
 
 # Output directory
 output/

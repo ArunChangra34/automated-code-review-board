@@ -1,8 +1,8 @@
 """Streamlit Web UI for the Automated Code Review Board.
 
 Offers two distinct perspectives:
-1. Layman / Plain English View: Business-level summaries, intuitive analogies, and plain-English scorecards.
-2. Technical Developer View: The original developer layout with exact diffs, AST symbols, rule IDs, and dataframes.
+1. Executive Summary View: High-level risk score, policy verdicts, and health breakdown.
+2. Technical Developer View: In-depth developer layout with diffs, AST symbols, rule IDs, and dataframes.
 """
 
 from __future__ import annotations
@@ -28,105 +28,563 @@ from reporting.markdown_report import generate_markdown_report  # noqa: E402
 # Page Configuration
 st.set_page_config(
     page_title="Automated Code Review Board",
-    page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Custom Styling for layman presentation
+# -----------------------------------------------------------------------------
+# THEME CONFIGURATION (LIGHT & DARK MODES)
+# -----------------------------------------------------------------------------
+if "theme_mode" not in st.session_state:
+    st.session_state["theme_mode"] = "Dark"
+
+theme_choice = st.sidebar.radio(
+    "Interface Theme",
+    options=["Dark", "Light"],
+    index=0 if st.session_state["theme_mode"] == "Dark" else 1,
+    horizontal=True,
+)
+st.session_state["theme_mode"] = theme_choice
+is_dark = theme_choice == "Dark"
+
+# Dynamic Palette
+if is_dark:
+    bg_app = "#0B0F19"
+    bg_surface = "#111827"
+    border_subtle = "#1F293D"
+    border_focus = "#38BDF8"
+    text_primary = "#F8FAFC"
+    text_secondary = "#94A3B8"
+    tag_bg = "#1E293B"
+    btn_bg = "#38BDF8"
+    btn_text = "#0B0F19"
+    rec_approve_bg = "#032B20"
+    rec_approve_border = "#059669"
+    rec_approve_badge = "#064E3B"
+    rec_approve_text = "#34D399"
+    rec_changes_bg = "#380D12"
+    rec_changes_border = "#DC2626"
+    rec_changes_badge = "#7F1D1D"
+    rec_changes_text = "#F87171"
+    badge_crit_bg = "#450A0A"
+    badge_crit_text = "#FCA5A5"
+    badge_crit_border = "#7F1D1D"
+    badge_high_bg = "#451A03"
+    badge_high_text = "#FCD34D"
+    badge_high_border = "#78350F"
+    badge_med_bg = "#422006"
+    badge_med_text = "#FDE047"
+    badge_med_border = "#713F12"
+    badge_low_bg = "#172554"
+    badge_low_text = "#93C5FD"
+    badge_low_border = "#1E3A8A"
+else:
+    bg_app = "#FAFAFA"
+    bg_surface = "#FFFFFF"
+    border_subtle = "#E2E8F0"
+    border_focus = "#0F172A"
+    text_primary = "#0F172A"
+    text_secondary = "#64748B"
+    tag_bg = "#F1F5F9"
+    btn_bg = "#0F172A"
+    btn_text = "#FFFFFF"
+    rec_approve_bg = "#FFFFFF"
+    rec_approve_border = "#A7F3D0"
+    rec_approve_badge = "#ECFDF5"
+    rec_approve_text = "#047857"
+    rec_changes_bg = "#FFFFFF"
+    rec_changes_border = "#FECACA"
+    rec_changes_badge = "#FEF2F2"
+    rec_changes_text = "#B91C1C"
+    badge_crit_bg = "#FEF2F2"
+    badge_crit_text = "#DC2626"
+    badge_crit_border = "#FECACA"
+    badge_high_bg = "#FFFBEB"
+    badge_high_text = "#D97706"
+    badge_high_border = "#FDE68A"
+    badge_med_bg = "#FEFCE8"
+    badge_med_text = "#CA8A04"
+    badge_med_border = "#FEF08A"
+    badge_low_bg = "#EFF6FF"
+    badge_low_text = "#2563EB"
+    badge_low_border = "#BFDBFE"
+
 st.markdown(
-    """
+    f"""
     <style>
-    .big-font { font-size: 1.15rem !important; line-height: 1.6; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    /* Typography */
+    .stMarkdown, .stMarkdown p, h1, h2, h3, h4, h5, h6,
+    .tva-navbar, .intake-header, .intake-card,
+    .rec-card-approve, .rec-card-changes {{
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }}
+
+    /* Base App Theme */
+    .stApp {{
+        background-color: {bg_app} !important;
+        color: {text_primary} !important;
+    }}
+    header[data-testid="stHeader"] {{
+        background-color: {bg_app} !important;
+    }}
+    .main .block-container {{
+        padding-top: 1.5rem !important;
+        padding-bottom: 4rem !important;
+        max-width: 1180px !important;
+    }}
+
+    /* Preserve Icon Font Ligatures */
+    [data-testid="stIconMaterial"],
+    [class*="material-symbols"],
+    [class*="material-icons"],
+    span[data-testid*="Icon"] {{
+        font-family: 'Material Symbols Rounded', 'Material Symbols Outlined', 'Material Icons' !important;
+    }}
+
+    /* Sidebar */
+    section[data-testid="stSidebar"] {{
+        background-color: {bg_surface} !important;
+        border-right: 1px solid {border_subtle} !important;
+    }}
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] span:not([data-testid="stIconMaterial"]) {{
+        color: {text_primary} !important;
+    }}
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {{
+        font-weight: 600 !important;
+        color: {text_secondary} !important;
+        font-size: 13px !important;
+    }}
+
+    /* Top Navigation Bar */
+    .tva-navbar {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 24px;
+        background: {bg_surface};
+        border: 1px solid {border_subtle};
+        border-radius: 12px;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    }}
+    .tva-brand {{
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: -0.02em;
+        color: {text_primary};
+    }}
+    .tva-brand-tag {{
+        font-weight: 400;
+        color: {text_secondary};
+        font-size: 13px;
+        margin-left: 2px;
+    }}
+    .tva-nav-links {{
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        color: {text_secondary};
+    }}
+    .tva-nav-links span.active {{
+        color: {text_primary};
+        font-weight: 600;
+    }}
+    .tva-status-pill {{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        background: {tag_bg};
+        color: {text_primary};
+        font-size: 12px;
+        font-weight: 500;
+    }}
+    .tva-status-dot {{
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #10B981;
+    }}
+
+    /* Header Title */
+    .intake-header {{
+        margin-bottom: 20px;
+    }}
+    .intake-title {{
+        font-size: 30px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        color: {text_primary};
+        margin-bottom: 6px;
+    }}
+    .intake-subtitle {{
+        font-size: 14px;
+        color: {text_secondary};
+        line-height: 1.5;
+        max-width: 780px;
+    }}
+    .code-pill {{
+        background: {tag_bg};
+        border: 1px solid {border_subtle};
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
+        font-size: 12px;
+        color: {text_primary};
+    }}
+
+    /* Central Intake Card */
+    .intake-card {{
+        background: {bg_surface};
+        border: 1px solid {border_subtle};
+        border-radius: 16px;
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
+        padding: 22px 26px;
+        margin-bottom: 24px;
+    }}
+    .intake-card-header {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid {border_subtle};
+        padding-bottom: 12px;
+        margin-bottom: 16px;
+    }}
+    .intake-tag {{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: {text_secondary};
+    }}
+    .intake-dot {{
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #0EA5E9;
+    }}
+
+    /* Expanders */
+    [data-testid="stExpander"] {{
+        background-color: {bg_surface} !important;
+        border: 1px solid {border_subtle} !important;
+        border-radius: 10px !important;
+        margin-bottom: 10px !important;
+    }}
+    [data-testid="stExpander"] summary p {{
+        color: {text_primary} !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+    }}
+
+    /* Metric Cards */
+    div[data-testid="stMetric"] {{
+        background: {bg_surface} !important;
+        border: 1px solid {border_subtle} !important;
+        border-radius: 12px !important;
+        padding: 16px 20px !important;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+    }}
+    div[data-testid="stMetricLabel"] p {{
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        color: {text_secondary} !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }}
+    div[data-testid="stMetricValue"] div {{
+        font-size: 26px !important;
+        font-weight: 700 !important;
+        color: {text_primary} !important;
+        letter-spacing: -0.03em !important;
+    }}
+
+    /* Decision Cards */
+    .rec-card-approve {{
+        background: {rec_approve_bg};
+        border: 1px solid {rec_approve_border};
+        border-left: 4px solid #10B981;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 20px;
+    }}
+    .rec-card-changes {{
+        background: {rec_changes_bg};
+        border: 1px solid {rec_changes_border};
+        border-left: 4px solid #EF4444;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 20px;
+    }}
+    .rec-badge-approve {{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: {rec_approve_text};
+        background: {rec_approve_badge};
+        border: 1px solid {rec_approve_border};
+        padding: 3px 10px;
+        border-radius: 9999px;
+        margin-bottom: 10px;
+    }}
+    .rec-badge-changes {{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: {rec_changes_text};
+        background: {rec_changes_badge};
+        border: 1px solid {rec_changes_border};
+        padding: 3px 10px;
+        border-radius: 9999px;
+        margin-bottom: 10px;
+    }}
+    .rec-title {{
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: {text_primary};
+        margin-bottom: 6px;
+    }}
+    .rec-reason {{
+        font-size: 14px;
+        color: {text_secondary};
+        line-height: 1.5;
+    }}
+
+    /* Badges */
+    .badge-critical {{
+        background: {badge_crit_bg};
+        color: {badge_crit_text};
+        border: 1px solid {badge_crit_border};
+        padding: 2px 7px;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 700;
+    }}
+    .badge-high {{
+        background: {badge_high_bg};
+        color: {badge_high_text};
+        border: 1px solid {badge_high_border};
+        padding: 2px 7px;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 700;
+    }}
+    .badge-medium {{
+        background: {badge_med_bg};
+        color: {badge_med_text};
+        border: 1px solid {badge_med_border};
+        padding: 2px 7px;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 700;
+    }}
+    .badge-low {{
+        background: {badge_low_bg};
+        color: {badge_low_text};
+        border: 1px solid {badge_low_border};
+        padding: 2px 7px;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 700;
+    }}
+
+    /* Primary Button */
+    button[kind="primary"] {{
+        background-color: {btn_bg} !important;
+        color: {btn_text} !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 10px 20px !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+    }}
+
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 8px !important;
+        border-bottom: 1px solid {border_subtle} !important;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        color: {text_secondary} !important;
+        padding: 10px 16px !important;
+    }}
+    .stTabs [aria-selected="true"] {{
+        color: {text_primary} !important;
+        border-bottom: 2px solid {border_focus} !important;
+    }}
+
+    /* Code Blocks */
+    .stCodeBlock {{
+        border-radius: 8px !important;
+        border: 1px solid {border_subtle} !important;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Header Title
-st.title("🛡️ Automated Code Review Board")
-st.caption("Multi-Agent Unified Diff Review System with Verified Patch Generation")
+# Top Navigation Bar with Dynamic Theme Indicator
+theme_symbol = "☾ Dark Mode" if is_dark else "☀ Light Mode"
+st.markdown(
+    f"""
+    <div class="tva-navbar">
+        <div class="tva-brand">
+            <span style="color:#0EA5E9; font-size:12px;">●</span>
+            <span>ACRB</span>
+            <span class="tva-brand-tag">Automated Code Review Board</span>
+        </div>
+        <div class="tva-nav-links">
+            <span class="active">Review Intake</span>
+            <span>Analysis</span>
+            <span>Remediation</span>
+            <span>Artifacts</span>
+            <span style="color:{text_secondary}; font-size:12px;">{theme_symbol}</span>
+            <div class="tva-status-pill">
+                <span class="tva-status-dot"></span>
+                <span>Review engine operational</span>
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Main Title & Subtitle with Crisp Terminology
+st.markdown(
+    """
+    <div class="intake-header">
+        <div class="intake-title">Code Review Intake</div>
+        <div class="intake-subtitle">
+            Initialize an automated multi-agent code inspection. Upload a unified <span class="code-pill">.diff</span> or <span class="code-pill">.patch</span> file, or select a pre-configured scenario. The deterministic review engine runs strictly offline with machine-verified patch remediation.
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # Sidebar Configuration
-st.sidebar.header("Review Configuration")
+st.sidebar.markdown("### Settings")
 
 view_mode = st.sidebar.radio(
-    "Display Perspective",
-    options=["👶 Layman / Plain English View", "👨‍💻 Technical Developer View"],
+    "Perspective",
+    options=["Executive Summary View", "Technical Developer View"],
     index=0,
-    help="Switch between plain-English business summaries and technical developer diffs.",
+    help="Toggle between executive health breakdown and technical developer diffs.",
 )
 
 execution_mode = st.sidebar.selectbox(
     "Execution Mode",
     options=["offline", "llm"],
-    index=0,
-    help="Offline runs purely local deterministic rules (<0.1s). LLM mode adds generative reasoning.",
+    index=1,
+    help="Offline runs deterministic rules (<5ms). LLM mode enables model-augmented fix suggestions.",
 )
 
-diff_source = st.sidebar.radio(
-    "Diff Input Source",
-    options=["Pre-Made Real Examples", "Upload a Diff File", "Paste Unified Diff"],
-    index=0,
-)
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Pipeline Architecture")
+with st.sidebar.expander("Specialist Review Agents", expanded=False):
+    st.markdown("""
+        - **Diff Inspector:** Structural metrics, change categorization, and domain risk scanning.
+        - **Style Guardian:** Code maintainability, formatting, and complexity compliance.
+        - **Security Shield:** Credentials detection and vulnerability analysis.
+        - **Test Coverage:** Public symbol interface coverage analysis.
+        - **Reviewer Manager:** Aggregation, corroboration, deduplication, and merge recommendation.
+        - **Fix-Suggestion Agent:** Machine-verified code patch generation.
+        """)
 
-# Friendly descriptions for sample files
+# Sample Files Map
 SAMPLE_EXPLANATIONS = {
-    "01_clean_change.diff": "🟢 Clean & Safe Feature (What good code looks like)",
-    "02_sql_injection_and_secret.diff": "🚨 Leaked Password & Database Flaw (Critical security emergency)",
-    "03_untested_feature.diff": "⚠️ Feature Built with Zero Tests (Accident waiting to happen)",
-    "04_style_mess.diff": "🧹 Messy & Hard-to-Read Code (High technical debt)",
-    "05_mixed_realistic.diff": "📦 Complex Multi-File PR (Real-world mix of bugs and security risks)",
+    "01_clean_change.diff": "Production-Ready Feature (Clean baseline)",
+    "02_sql_injection_and_secret.diff": "Security Critical (Credentials & SQL injection)",
+    "03_untested_feature.diff": "Coverage Deficit (Untested public functions)",
+    "04_style_mess.diff": "Quality Debt (Syntax, complexity & style errors)",
+    "05_mixed_realistic.diff": "Real-World Multi-File PR (Compound defects)",
 }
 
 samples_dir = ROOT_DIR / "samples" / "diffs"
 sample_files = sorted(samples_dir.glob("*.diff")) if samples_dir.exists() else []
+
+# Central Intake Card Matching Reference Design
+st.markdown(
+    f"""
+    <div class="intake-card">
+        <div class="intake-card-header">
+            <div class="intake-tag">
+                <span class="intake-dot"></span>
+                <span>Review Input Vector</span>
+            </div>
+            <div style="font-size:12px; color:{text_secondary};">Unified Diff / Patch Format</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+intake_tab_options = ["Pre-Configured Scenarios", "File Upload (.diff / .patch)", "Raw Text Input"]
+chosen_tab = st.radio(
+    "Select Input Method",
+    options=intake_tab_options,
+    horizontal=True,
+    label_visibility="collapsed",
+)
+
 selected_sample = None
 uploaded_file = None
 pasted_diff = ""
 
-if "Pre-Made" in diff_source:
+if chosen_tab == "Pre-Configured Scenarios":
     if sample_files:
-        chosen_friendly = st.sidebar.selectbox(
-            "Select an Example Scenario",
+        chosen_friendly = st.selectbox(
+            "Select Scenario",
             options=[SAMPLE_EXPLANATIONS.get(f.name, f.name) for f in sample_files],
-            index=4,
+            index=1,
         )
         for f in sample_files:
             if SAMPLE_EXPLANATIONS.get(f.name, f.name) == chosen_friendly:
                 selected_sample = f
                 break
     else:
-        st.sidebar.warning("No sample diff files found in samples/diffs/")
-elif "Upload" in diff_source:
-    uploaded_file = st.sidebar.file_uploader(
-        "Upload a .diff or .patch file",
+        st.warning("No sample diff files found in samples/diffs/")
+elif chosen_tab == "File Upload (.diff / .patch)":
+    uploaded_file = st.file_uploader(
+        "Drop .diff or .patch files here",
         type=["diff", "patch", "txt"],
-        help="A unified diff file showing additions (+) and deletions (-).",
+        help="Upload a standard unified diff file (+ additions, - deletions).",
     )
-elif "Paste" in diff_source:
-    pasted_diff = st.sidebar.text_area(
+elif chosen_tab == "Raw Text Input":
+    pasted_diff = st.text_area(
         "Paste Unified Diff Here",
-        height=220,
+        height=180,
         placeholder="diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,3 +1,4 @@\n+print('hello')",
     )
 
-run_button = st.sidebar.button(
-    "🚀 Run Team Review Now",
-    type="primary",
-    use_container_width=True,
-)
-
-with st.sidebar.expander("ℹ️ How Does This Work?", expanded=False):
-    st.markdown("""
-        **Meet Your 5 Specialist Agents:**
-        1. 🔍 **Diff Inspector:** Sizes up the change and flags sensitive areas (payments, passwords).
-        2. 🎨 **Style Guardian:** Makes sure code is tidy, easy to read, and well-named.
-        3. 🛡️ **Security Shield:** Hunts for leaked passwords and hacker loopholes.
-        4. 🧪 **Test Detective:** Checks if safety tests were written for new functions.
-        5. ⚖️ **Reviewer Manager:** Combines all notes, discards duplicates, and renders the final verdict.
-        6. 🔧 **Auto-Fixer:** Writes a verified patch for the worst problem found!
-        """)
+# Primary Execution Button
+btn_col1, btn_col2 = st.columns([1, 3])
+with btn_col1:
+    run_button = st.button("Execute Review Pipeline", type="primary", use_container_width=True)
 
 # Read selected diff text
 raw_diff_text = ""
@@ -137,26 +595,8 @@ elif uploaded_file:
 elif pasted_diff:
     raw_diff_text = pasted_diff
 
-# Initial instructions
-if not raw_diff_text.strip():
-    if "Upload" in diff_source:
-        st.info(
-            "👈 Please upload a `.diff` or `.patch` file in the sidebar and click **'Run Team Review Now'**!"
-        )
-    elif "Paste" in diff_source:
-        st.info(
-            "👈 Please paste your unified diff text into the box in the sidebar and click **'Run Team Review Now'**!"
-        )
-    else:
-        st.info(
-            "👈 Choose a sample scenario on the left and click **'Run Team Review Now'** to get started!"
-        )
-else:
-    with st.expander("📄 View Input Unified Diff", expanded=False):
-        st.caption(
-            "This box displays the raw code changes (unified diff) currently loaded into the system. "
-            "To review this document with the AI agents, click **'Run Team Review Now'** in the sidebar."
-        )
+if raw_diff_text.strip():
+    with st.expander("View Input Unified Diff Buffer", expanded=False):
         st.code(
             raw_diff_text[:3000] + ("\n... [truncated]" if len(raw_diff_text) > 3000 else ""),
             language="diff",
@@ -164,10 +604,10 @@ else:
 
 
 # -----------------------------------------------------------------------------
-# 1. LAYMAN VIEW IMPLEMENTATION
+# 1. EXECUTIVE SUMMARY VIEW
 # -----------------------------------------------------------------------------
 def render_layman_view(state, review, summary, patch):
-    """Render plain-English, executive and layman friendly view."""
+    """Render executive overview."""
     is_approved = review.decision == "APPROVE"
     risk_score = review.merge_risk_score
     total_findings = len(review.priority_order)
@@ -176,52 +616,60 @@ def render_layman_view(state, review, summary, patch):
     med_count = len(review.findings_by_severity.get(Severity.MEDIUM, []))
     low_count = len(review.findings_by_severity.get(Severity.LOW, []))
 
-    # Big Plain-English Decision Banner
+    # Clean Recommendation Card
     if is_approved:
-        st.success(
-            "### ✅ SAFE TO MERGE (Approved)\n\n"
-            "**Great news!** This code was thoroughly examined by all 4 review specialists and meets every safety and quality standard. "
-            "There are **zero dangerous vulnerabilities** or blocking issues.\n\n"
-            f"*Reason: {review.decision_reason}*"
+        st.markdown(
+            f"""
+            <div class="rec-card-approve">
+                <div class="rec-badge-approve">● Safe to Merge</div>
+                <div class="rec-title">Merge Recommendation: APPROVE</div>
+                <div class="rec-reason">
+                    The changeset satisfies all defined security, style, and coverage policies. Zero blocking vulnerabilities or critical defects were detected.<br>
+                    <strong>Policy Verdict:</strong> {review.decision_reason}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
     else:
-        st.error(
-            "### 🛑 DO NOT MERGE YET (Changes Requested)\n\n"
-            f"**Hold on!** The review board found **{crit_count + high_count} serious blocker(s)** that could break your application, "
-            "leak private credentials, or introduce vulnerabilities.\n\n"
-            "These issues must be resolved before this code is merged into production.\n\n"
-            f"*Why this decision: {review.decision_reason}*"
+        st.markdown(
+            f"""
+            <div class="rec-card-changes">
+                <div class="rec-badge-changes">● Action Required</div>
+                <div class="rec-title">Merge Recommendation: REQUEST CHANGES</div>
+                <div class="rec-reason">
+                    The review board identified <strong>{crit_count + high_count} blocking issue(s)</strong> exceeding risk tolerance thresholds.<br>
+                    <strong>Policy Verdict:</strong> {review.decision_reason}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    # 4 Vital Scorecards
+    # 4 Key Scorecards
     col_risk, col_blockers, col_total, col_time = st.columns(4)
     with col_risk:
-        risk_label = (
-            "🟢 Low Risk"
-            if risk_score < 30
-            else ("🟡 Moderate Risk" if risk_score < 70 else "🔴 Dangerous Risk")
-        )
         st.metric(
             label="Overall Risk Score",
             value=f"{risk_score} / 100",
-            delta=risk_label,
+            delta="Passes Tolerance" if is_approved else "Exceeds Threshold",
             delta_color="normal" if is_approved else "inverse",
         )
     with col_blockers:
         blocker_count = crit_count + high_count
         st.metric(
-            label="Must-Fix Blocker Issues",
+            label="Must-Fix Blockers",
             value=blocker_count,
             delta=(
-                "0 Blockers Needed"
+                "0 Immediate Blockers"
                 if blocker_count == 0
-                else f"{blocker_count} Immediate Action Items"
+                else f"{blocker_count} Immediate Actions"
             ),
             delta_color="normal" if blocker_count == 0 else "inverse",
         )
     with col_total:
         st.metric(
-            label="Total Notices Found",
+            label="Total Findings",
             value=total_findings,
             delta=f"{crit_count} Crit • {high_count} High • {med_count} Med • {low_count} Low",
             delta_color="off",
@@ -229,9 +677,9 @@ def render_layman_view(state, review, summary, patch):
     with col_time:
         total_duration_ms = sum(res.duration_ms for res in state.agent_results.values())
         st.metric(
-            label="Review Turnaround Time",
+            label="Pipeline Latency",
             value=f"{total_duration_ms:.1f} ms",
-            delta="⚡ Sub-second lightning fast",
+            delta="Sub-second turnaround",
             delta_color="normal",
         )
 
@@ -239,107 +687,79 @@ def render_layman_view(state, review, summary, patch):
 
     tab_simple, tab_problems, tab_autofix, tab_testing, tab_agents, tab_downloads = st.tabs(
         [
-            "📋 Plain English Summary",
-            f"🚨 Issues Found ({total_findings})",
-            "🔧 Automatic Repair (Verified Fix)",
-            "🧪 Safety Tests Checkup",
-            "🤖 Behind the Scenes (Agents)",
-            "📥 Download Reports",
+            "Executive Summary",
+            f"Findings ({total_findings})",
+            "Remediation Patch",
+            "Test Verification",
+            "Specialist Diagnostics",
+            "Export Artifacts",
         ]
     )
 
-    # Tab 1: Plain English Summary
+    # Tab 1: Executive Summary
     with tab_simple:
-        st.subheader("💡 At-A-Glance Health Breakdown")
+        st.markdown("#### Health Breakdown")
         sc1, sc2, sc3 = st.columns(3)
         with sc1:
-            st.markdown("#### 🔒 Security Health")
+            st.markdown("**Security Posture**")
             if crit_count == 0:
                 st.success(
-                    "✅ **No Passwords or Leaks Detected**\n\nThe code does not expose credentials or common injection vulnerabilities."
+                    "No Credentials or Injections Detected\n\nCode satisfies OWASP standards."
                 )
             else:
                 st.error(
-                    f"❌ **{crit_count} Critical Flaw(s) Found!**\n\nSensitive passwords, secret tokens, or vulnerable database queries were detected."
+                    f"{crit_count} Critical Flaw(s) Detected\n\nHard-coded credentials or injection vectors found."
                 )
         with sc2:
-            st.markdown("#### 🧪 Test Health")
+            st.markdown("**Test Adequacy**")
             if high_count == 0 or not any(
                 f.category.value == "test_coverage" for f in review.priority_order
             ):
-                st.success(
-                    "✅ **Properly Tested**\n\nNew logic has corresponding unit tests to prevent future bugs."
-                )
+                st.success("Adequately Tested\n\nNew logic has corresponding test coverage.")
             else:
                 st.warning(
-                    "⚠️ **Missing Safety Tests**\n\nProgrammers introduced new features without testing them. Untested code often breaks down the line."
+                    "Missing Safety Tests\n\nNew public functions introduced without coverage."
                 )
         with sc3:
-            st.markdown("#### 🧹 Code Cleanliness")
+            st.markdown("**Maintainability**")
             if med_count == 0 and low_count == 0:
-                st.success(
-                    "✅ **Sparkling Clean**\n\nCode follows standard readability and naming conventions."
-                )
+                st.success("Clean & Compliant\n\nFollows standard naming and style conventions.")
             else:
                 st.info(
-                    f"ℹ️ **{med_count + low_count} Maintainability Note(s)**\n\nMinor style items (like overly long lines or debug statements) that should be tidied up."
+                    f"{med_count + low_count} Quality Notice(s)\n\nFormatting, docstring, or style items identified."
                 )
 
         st.markdown("---")
-        st.markdown("### 🗺️ What Changed in This Update?")
+        st.markdown("#### Structural Diff Overview")
         if summary:
             st.markdown(f"**Intent Summary:** *{summary.intent_summary}*")
             c_size, c_files, c_lines = st.columns(3)
-            c_size.info(
-                f"**Change Size Category:** `{summary.size_class}` (Small changes are safer to review than giant ones)"
-            )
+            c_size.info(f"**Change Size Category:** `{summary.size_class}`")
             c_files.info(f"**Files Touched:** {summary.total_files} file(s)")
-            c_lines.info(
-                f"**Lines Changed:** +{summary.lines_added} added, -{summary.lines_removed} deleted"
-            )
+            c_lines.info(f"**Lines Changed:** +{summary.lines_added} / -{summary.lines_removed}")
             if summary.risk_areas:
                 st.warning(
-                    f"⚠️ **Caution:** This update modifies sensitive parts of the application: **{', '.join(summary.risk_areas).upper()}**."
+                    f"Sensitive domains touched: **{', '.join(summary.risk_areas).upper()}**."
                 )
 
-    # Tab 2: Issues Found
+    # Tab 2: Findings
     with tab_problems:
-        st.subheader("🔍 Detailed Issues Detected by the Board")
+        st.markdown("#### Detected Review Findings")
         if not review.priority_order:
-            st.success("🎉 Outstanding job! No issues were identified in this changeset.")
+            st.success("Zero issues identified in this changeset.")
         else:
-            st.caption("Issues are listed in order of risk—fix the top ones first!")
+            st.caption("Findings ranked in descending priority order:")
             for idx, f in enumerate(review.priority_order, start=1):
-                sev_meta = {
-                    Severity.CRITICAL: (
-                        "🔴 CRITICAL",
-                        "Danger: Immediate security risk, data loss, or leaked password",
-                    ),
-                    Severity.HIGH: (
-                        "🟠 HIGH",
-                        "Important: Missing safety tests or serious logic risk",
-                    ),
-                    Severity.MEDIUM: (
-                        "🟡 MEDIUM",
-                        "Warning: Could cause reliability issues or difficult maintenance",
-                    ),
-                    Severity.LOW: ("🔵 LOW", "Tip: Readability, naming, or minor cleanup"),
-                    Severity.INFO: ("⚪ INFO", "Notice: General observation about the code change"),
-                }.get(f.severity, ("Notice", ""))
-                sev_title, sev_desc = sev_meta
-                corrob_badge = (
-                    f" • 🎯 Confirmed by {len(f.corroborated_by)} independent agents"
+                corrob_text = (
+                    f" • Corroborated by {len(f.corroborated_by)} agents"
                     if len(f.corroborated_by) > 1
                     else ""
                 )
-
                 with st.expander(
-                    f"#{idx}. [{sev_title}] {f.title} ({f.file_path or 'General'}){corrob_badge}"
+                    f"#{idx}. [{f.severity.value}] {f.title} ({f.file_path or 'General'}){corrob_text}"
                 ):
-                    st.caption(f"**Severity Meaning:** {sev_desc}")
-                    st.markdown(f"**What's the issue?**\n{f.description}")
+                    st.markdown(f"**Description:** {f.description}")
                     if f.code_snippet:
-                        st.markdown("**Where it happens:**")
                         st.code(
                             f.code_snippet,
                             language=(
@@ -348,73 +768,57 @@ def render_layman_view(state, review, summary, patch):
                                 else "text"
                             ),
                         )
-                    st.markdown(f"**💡 How to fix it:**\n> {f.recommendation}")
+                    st.markdown(f"**Recommendation:** {f.recommendation}")
+                    st.caption(
+                        f"Rule: `{f.rule_id}` | Source: `{f.evidence_source or 'Rule Engine'}`"
+                    )
 
-    # Tab 3: Automatic Repair
+    # Tab 3: Remediation Patch
     with tab_autofix:
-        st.subheader("🔧 Self-Healing Fix for the #1 Worst Issue")
-        st.markdown("""
-            Most tools only complain about problems. **Our system actually writes a fix, applies it in a safe memory sandbox,
-            and tests it to prove that it eliminates the flaw without introducing any new bugs!**
-            """)
+        st.markdown("#### Machine-Verified Remediation")
         settings = get_settings()
 
         if patch:
             verif = patch.verification
             if verif and verif.verdict == "VERIFIED":
-                st.success("### ✅ Fix Status: 100% VERIFIED & SAFE TO APPLY")
-                st.markdown(
-                    "The automated patch below was successfully tested in an isolated sandbox. It fixes the vulnerability completely and broke zero existing features."
-                )
+                st.success("Patch Verification: VERIFIED (Safe to apply)")
             elif verif and verif.verdict == "PARTIAL":
-                st.warning("### ⚠️ Fix Status: PARTIALLY VERIFIED")
-                st.markdown("The patch works, but minor cosmetic items may need manual tweaking.")
+                st.warning("Patch Verification: PARTIAL")
             else:
-                st.error("### ❌ Fix Status: REJECTED")
-                st.markdown(
-                    "An automated patch could not be guaranteed safe. Please consult manual instructions below."
-                )
+                st.error("Patch Verification: REJECTED")
 
-            st.markdown(f"**Target Issue:** `{patch.finding_id}` in `{patch.file_path}`")
-            st.info(f"**What this fix does:** {patch.explanation}")
-            st.markdown("**Proposed Code Replacement (Red is removed, Green is added):**")
+            st.markdown(f"**Target Finding:** `{patch.finding_id}` (`{patch.file_path}`)")
+            st.info(f"**Remediation Explanation:** {patch.explanation}")
             st.code(patch.unified_diff, language="diff")
 
             if verif:
-                st.markdown("#### 🧪 Sandbox Safety Inspection Results")
                 v1, v2, v3, v4 = st.columns(4)
-                v1.metric("Applies Cleanly?", "✅ Yes" if verif.applies_cleanly else "❌ No")
-                v2.metric("Code Syntax Valid?", "✅ Valid" if verif.syntax_ok else "❌ Broken")
+                v1.metric("Applies Cleanly", "Yes" if verif.applies_cleanly else "No")
+                v2.metric("Syntax Valid", "Valid" if verif.syntax_ok else "Broken")
                 v3.metric(
-                    "Original Flaw Gone?",
-                    "✅ Eliminated" if verif.original_finding_resolved else "❌ Still Present",
+                    "Original Flaw Gone",
+                    "Resolved" if verif.original_finding_resolved else "Present",
                 )
-                v4.metric(
-                    "New Bugs Added?",
-                    (
-                        "0 New Bugs"
-                        if len(verif.new_findings_introduced) == 0
-                        else f"{len(verif.new_findings_introduced)} New Issues"
-                    ),
-                )
+                v4.metric("New Bugs Added", f"{len(verif.new_findings_introduced)}")
 
             if patch.followups:
-                st.markdown("**Next Steps for Developers:**")
+                st.markdown("**Follow-Up Actions:**")
                 for act in patch.followups:
                     st.markdown(f"- {act}")
 
         # Per-finding fix suggestions (LLM mode)
-        if state.fix_suggestions:
+        suggestions = getattr(state, "fix_suggestions", [])
+        if suggestions:
             st.markdown("---")
-            st.markdown(f"#### 💡 {len(state.fix_suggestions)} Automated Fix Suggestion(s)")
-            for idx, sug in enumerate(state.fix_suggestions, start=1):
-                badge = (
-                    "✅ Verified Fix"
+            st.markdown(f"#### Additional Fix Suggestions ({len(suggestions)})")
+            for idx, sug in enumerate(suggestions, start=1):
+                badge_text = (
+                    "● VERIFIED"
                     if (sug.verification and sug.verification.verdict == "VERIFIED")
-                    else ("ℹ️ Manual Guidance" if sug.kind == "manual" else "🧪 Syntax Checked")
+                    else ("Manual Guidance" if sug.kind == "manual" else "Syntax Checked")
                 )
                 with st.expander(
-                    f"Suggestion #{idx}: {sug.rule_id} ({sug.file_path or 'file'}) — {badge}"
+                    f"Suggestion #{idx}: {sug.rule_id} ({sug.file_path or 'file'}) — {badge_text}"
                 ):
                     st.write(f"**Explanation:** {sug.explanation}")
                     if sug.unified_diff:
@@ -424,95 +828,59 @@ def render_layman_view(state, review, summary, patch):
         elif not patch:
             if settings.effective_mode == "offline":
                 st.info(
-                    "ℹ️ Automated fix suggestions are available in LLM mode (`--mode llm` with an API key configured). "
-                    "In offline mode, only analysis is performed."
+                    "Automated fix suggestions are enabled in LLM mode (--mode llm with API key). "
+                    "In offline mode, deterministic analysis is performed."
                 )
             else:
                 st.info(
-                    "✨ No critical automated repairs were required for this changeset. All looks smooth!"
+                    "No automated remediation patch required or synthesized for this changeset."
                 )
 
-    # Tab 4: Safety Tests Checkup
+    # Tab 4: Test Verification
     with tab_testing:
-        st.subheader("🧪 Software Testing Audit")
-        st.markdown("""
-            In professional software engineering, writing code without automated tests is like driving without a seatbelt.
-            Here is our audit of whether the newly written features have safety tests:
-            """)
+        st.markdown("#### Test Adequacy & Coverage")
         try:
             from plugins.coverage_plugin import CoveragePlugin
 
             cov = CoveragePlugin().analyze_coverage(state.files)
-            test_ratio = cov.get("test_ratio", 0.0)
+            st.markdown(
+                f"**Change Test Ratio:** `{cov.get('test_ratio', 0.0):.2f}` (test lines added / source lines added)"
+            )
             symbol_map = cov.get("symbol_map", [])
-
-            c_rat, c_assert, c_err = st.columns(3)
-            c_rat.metric(
-                label="Test-to-Code Ratio",
-                value=f"{test_ratio:.2f}",
-                delta="Healthy (>0.5)" if test_ratio >= 0.5 else "Needs More Tests (<0.5)",
-                delta_color="normal" if test_ratio >= 0.5 else "inverse",
-            )
-            c_assert.metric(
-                "Quality Assertions Present?",
-                "✅ Yes" if cov.get("has_assertions") else "❌ Missing",
-            )
-            c_err.metric(
-                "Error/Failure Cases Tested?",
-                "✅ Yes" if cov.get("has_error_tests") else "⚠️ Untested",
-            )
-
-            st.markdown("---")
-            st.markdown("#### Function-by-Function Test Roster")
             if symbol_map:
-                friendly_rows = []
-                for s in symbol_map:
-                    st_raw = s.get("status", "untested")
-                    st_label = (
-                        "🟢 Tested & Verified"
-                        if st_raw == "tested"
-                        else (
-                            "🟡 Partially Tested"
-                            if st_raw == "partially tested"
-                            else "🔴 Untested (Dangerous)"
-                        )
-                    )
-                    friendly_rows.append(
-                        {
-                            "Function / Class Name": s.get("symbol"),
-                            "File Location": f"{s.get('file_path')}:{s.get('line_number')}",
-                            "Safety Status": st_label,
-                        }
-                    )
-                st.dataframe(friendly_rows, use_container_width=True)
+                st.table(symbol_map)
             else:
-                st.info("ℹ️ No new public functions or classes were added in this update.")
-        except Exception as e:
-            st.warning(f"Could not compute coverage check: {e}")
+                st.info("No new public functions or classes declared in this changeset.")
+        except Exception as exc:
+            st.warning(f"Could not compute coverage table: {exc}")
 
-    # Tab 5: Behind The Scenes
+    # Tab 5: Specialist Diagnostics
     with tab_agents:
-        st.subheader("🤖 Multi-Agent Execution Board")
+        st.markdown("#### Specialist Concurrency & Diagnostics")
         agent_cards = [
-            ("🔍 Diff Agent", "Structure & Metrics", state.agent_results.get("diff_agent")),
             (
-                "🎨 Style Agent",
-                "Code Neatness & Readability",
+                "Diff Inspector",
+                "Change Metrics & Domain Risk",
+                state.agent_results.get("diff_agent"),
+            ),
+            (
+                "Style Guardian",
+                "Maintainability & Standards",
                 state.agent_results.get("style_agent"),
             ),
             (
-                "🛡️ Security Agent",
-                "OWASP & Secrets Scanning",
+                "Security Shield",
+                "Credentials & Vulnerabilities",
                 state.agent_results.get("security_agent"),
             ),
             (
-                "🧪 Test-Coverage Agent",
-                "Safety Tests Verification",
+                "Test Coverage",
+                "Interface Coverage Verification",
                 state.agent_results.get("test_coverage_agent"),
             ),
             (
-                "⚖️ Reviewer Manager",
-                "Consolidation & Final Decision",
+                "Reviewer Manager",
+                "Aggregation & Policy Verdict",
                 state.agent_results.get("reviewer_manager"),
             ),
         ]
@@ -522,23 +890,20 @@ def render_layman_view(state, review, summary, patch):
                 st.markdown(f"**{name}**")
                 st.caption(role)
                 if res:
-                    st.markdown(f"**Status:** {'🟢 OK' if res.status == 'ok' else '🔴 Failed'}")
+                    st.markdown(f"**Status:** {'OK' if res.status == 'ok' else 'Failed'}")
                     st.markdown(f"**Time:** `{res.duration_ms:.1f}ms`")
-                    st.markdown(f"**Found:** `{len(res.findings)} issues`")
+                    st.markdown(f"**Findings:** `{len(res.findings)}`")
                 else:
                     st.caption("Standby")
 
         st.markdown("---")
-        st.markdown("#### ⏱️ Concurrency Timeline")
-        st.caption(
-            "Proof of true parallel execution: notice all 4 specialist agents start and finish at the same millisecond mark!"
-        )
+        st.markdown("#### Execution Timeline")
         timeline_rows = [
             {
-                "Agent Name": t.agent_name,
-                "Action Event": t.event.upper(),
-                "Exact Timestamp": t.timestamp,
-                "Time Taken": f"{t.duration_ms:.1f} ms" if t.duration_ms is not None else "-",
+                "Agent": t.agent_name,
+                "Event": t.event.upper(),
+                "Timestamp": t.timestamp,
+                "Duration": f"{t.duration_ms:.1f} ms" if t.duration_ms is not None else "-",
             }
             for t in state.timeline
         ]
@@ -546,14 +911,14 @@ def render_layman_view(state, review, summary, patch):
 
     # Tab 6: Downloads
     with tab_downloads:
-        st.subheader("📥 Export & Share Official Review Reports")
+        st.markdown("#### Export Artifacts")
         settings = get_settings()
         md_content = generate_markdown_report(state, mode=settings.effective_mode)
         json_content = generate_json_report(state)
         d1, d2 = st.columns(2)
         with d1:
             st.download_button(
-                label="📄 Download Markdown Report (review.md)",
+                label="Download Markdown Report (review.md)",
                 data=md_content,
                 file_name=f"review_{state.change_id}.md",
                 mime="text/markdown",
@@ -561,7 +926,7 @@ def render_layman_view(state, review, summary, patch):
             )
         with d2:
             st.download_button(
-                label="💾 Download Raw Data (review.json)",
+                label="Download Raw JSON Data (review.json)",
                 data=json_content,
                 file_name=f"review_{state.change_id}.json",
                 mime="application/json",
@@ -570,17 +935,33 @@ def render_layman_view(state, review, summary, patch):
 
 
 # -----------------------------------------------------------------------------
-# 2. ORIGINAL TECHNICAL DEVELOPER VIEW (EXACTLY AS IT WAS INITIALLY)
+# 2. TECHNICAL DEVELOPER VIEW
 # -----------------------------------------------------------------------------
 def render_technical_view(state, review, summary, patch):
-    """Render original technical developer view with raw diffs, AST symbols, and dataframes."""
+    """Render technical developer view."""
     col_rec, col_score, col_findings = st.columns([2, 1, 1])
     with col_rec:
         if review.decision == "APPROVE":
-            st.success("### 🟢 RECOMMENDATION: APPROVE")
+            st.markdown(
+                """
+                <div class="rec-card-approve">
+                    <div class="rec-badge-approve">● APPROVE</div>
+                    <div class="rec-title">Merge Recommendation: APPROVE</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
         else:
-            st.error("### 🔴 RECOMMENDATION: REQUEST CHANGES")
-        st.write(f"**Why this decision:** {review.decision_reason}")
+            st.markdown(
+                """
+                <div class="rec-card-changes">
+                    <div class="rec-badge-changes">● REQUEST CHANGES</div>
+                    <div class="rec-title">Merge Recommendation: REQUEST CHANGES</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        st.write(f"**Policy Reason:** {review.decision_reason}")
 
     with col_score:
         st.metric(
@@ -594,7 +975,7 @@ def render_technical_view(state, review, summary, patch):
         total_f = len(review.priority_order)
         crit_f = len(review.findings_by_severity.get(Severity.CRITICAL, []))
         st.metric(
-            label="Total Deduplicated Findings",
+            label="Deduplicated Findings",
             value=total_f,
             delta=f"{crit_f} Critical",
             delta_color="inverse" if crit_f > 0 else "off",
@@ -604,59 +985,51 @@ def render_technical_view(state, review, summary, patch):
 
     tab_findings, tab_patch, tab_coverage, tab_summary, tab_timeline, tab_export = st.tabs(
         [
-            "🔍 Review Findings",
-            "🛠️ Suggested Verified Fix",
-            "🧪 Test Coverage",
-            "📊 Change Summary",
-            "⏱️ Agent Timeline",
-            "📥 Export Reports",
+            f"Findings ({total_f})",
+            "Remediation Patch",
+            "Coverage Map",
+            "Change Summary",
+            "Agent Timeline",
+            "Export Reports",
         ]
     )
 
     # Technical Tab 1: Findings by Severity
     with tab_findings:
-        st.subheader("Prioritized Review Findings")
+        st.markdown("#### Prioritized Review Findings")
         if not review.priority_order:
-            st.info("Zero findings detected. Changeset meets all acceptance standards!")
+            st.info("Zero findings detected. Changeset meets all acceptance standards.")
         else:
             for f in review.priority_order:
-                sev_badge = {
-                    Severity.CRITICAL: "🔴 CRITICAL",
-                    Severity.HIGH: "🟠 HIGH",
-                    Severity.MEDIUM: "🟡 MEDIUM",
-                    Severity.LOW: "🔵 LOW",
-                    Severity.INFO: "⚪ INFO",
-                }.get(f.severity, f.severity.value)
-
                 corrob_str = (
-                    f" • 🎯 Corroborated by {len(f.corroborated_by)} agents"
+                    f" • Corroborated by {len(f.corroborated_by)} agents"
                     if len(f.corroborated_by) > 1
                     else ""
                 )
                 with st.expander(
-                    f"Rank #{f.priority_rank} [{sev_badge}] {f.title} ({f.file_path or 'global'}){corrob_str}"
+                    f"Rank #{f.priority_rank} [{f.severity.value}] {f.title} ({f.file_path or 'global'}){corrob_str}"
                 ):
                     st.write(f"**Explanation:** {f.description}")
                     if f.code_snippet:
                         st.code(f.code_snippet, language="python")
                     st.write(f"**Recommendation:** {f.recommendation}")
                     st.caption(
-                        f"Rule: `{f.rule_id}` | Citation: `{f.evidence_source or 'Ungrounded'}` | Confidence: {int(f.confidence * 100)}%"
+                        f"Rule: `{f.rule_id}` | Evidence: `{f.evidence_source or 'Ungrounded'}` | Confidence: {int(f.confidence * 100)}%"
                     )
 
     # Technical Tab 2: Suggested Verified Patch
     with tab_patch:
-        st.subheader("Automated Fix for Highest-Severity Finding")
+        st.markdown("#### Machine-Verified Remediation Patch")
         settings = get_settings()
         if patch:
             verif = patch.verification
             if verif:
                 if verif.verdict == "VERIFIED":
-                    st.success("### ✅ Patch Verification: VERIFIED (Safe to Merge)")
+                    st.success("Patch Verification: VERIFIED (Safe to Merge)")
                 elif verif.verdict == "PARTIAL":
-                    st.warning("### ⚠️ Patch Verification: PARTIAL (Minor Quality Notices)")
+                    st.warning("Patch Verification: PARTIAL (Quality Notices)")
                 else:
-                    st.error("### ❌ Patch Verification: REJECTED (Unsafe or Context Mismatch)")
+                    st.error("Patch Verification: REJECTED (Unsafe or Context Mismatch)")
 
                 st.write(f"**Target Finding:** `{patch.finding_id}` (`{patch.file_path}`)")
                 st.write(f"**Explanation:** {patch.explanation}")
@@ -677,27 +1050,21 @@ def render_technical_view(state, review, summary, patch):
                         st.write(f"- {action}")
 
         # Per-finding fix suggestions (LLM mode)
-        if state.fix_suggestions:
+        suggestions = getattr(state, "fix_suggestions", [])
+        if suggestions:
             st.markdown("---")
-            st.subheader("🧩 Fix Suggestions (LLM-Assisted)")
-            st.caption(
-                f"{len(state.fix_suggestions)} suggestion(s) generated for detected findings."
-            )
-            for idx, sug in enumerate(state.fix_suggestions, start=1):
+            st.markdown(f"#### Fix Suggestions ({len(suggestions)})")
+            for idx, sug in enumerate(suggestions, start=1):
                 badge = (
-                    "🟢 VERIFIED"
+                    "VERIFIED"
                     if (sug.verification and sug.verification.verdict == "VERIFIED")
                     else (
-                        "🟡 PARTIAL"
+                        "PARTIAL"
                         if (sug.verification and sug.verification.verdict == "PARTIAL")
                         else (
-                            "🔴 REJECTED"
+                            "REJECTED"
                             if (sug.verification and sug.verification.verdict == "REJECTED")
-                            else (
-                                "🔵 syntax-checked"
-                                if sug.kind == "new_file"
-                                else "⚪ manual guidance"
-                            )
+                            else ("syntax-checked" if sug.kind == "new_file" else "manual guidance")
                         )
                     )
                 )
@@ -724,7 +1091,7 @@ def render_technical_view(state, review, summary, patch):
         elif not patch:
             if settings.effective_mode == "offline":
                 st.info(
-                    "ℹ️ Fix suggestions are available in LLM mode (`--mode llm` with an API key configured). "
+                    "Fix suggestions are available in LLM mode (--mode llm with API key configured). "
                     "In offline mode, automated fixes are disabled."
                 )
             else:
@@ -734,7 +1101,7 @@ def render_technical_view(state, review, summary, patch):
 
     # Technical Tab 3: Test Coverage
     with tab_coverage:
-        st.subheader("Test Adequacy & Symbol Coverage")
+        st.markdown("#### Test Adequacy & Symbol Coverage")
         try:
             from plugins.coverage_plugin import CoveragePlugin
 
@@ -752,7 +1119,7 @@ def render_technical_view(state, review, summary, patch):
 
     # Technical Tab 4: Change Summary
     with tab_summary:
-        st.subheader("Diff Analysis & Risk Areas")
+        st.markdown("#### Diff Analysis & Risk Areas")
         if summary:
             st.write(f"**Intent Summary:** {summary.intent_summary}")
             st.write(
@@ -775,7 +1142,7 @@ def render_technical_view(state, review, summary, patch):
 
     # Technical Tab 5: Agent Timeline
     with tab_timeline:
-        st.subheader("Concurrent Agent Execution Timeline")
+        st.markdown("#### Specialist Concurrency Timeline")
         timeline_rows = [
             {
                 "Agent": t.agent_name,
@@ -790,7 +1157,7 @@ def render_technical_view(state, review, summary, patch):
 
     # Technical Tab 6: Export Reports
     with tab_export:
-        st.subheader("Download Generated Artifacts")
+        st.markdown("#### Download Generated Artifacts")
         settings = get_settings()
         md_content = generate_markdown_report(state, mode=settings.effective_mode)
         json_content = generate_json_report(state)
@@ -798,7 +1165,7 @@ def render_technical_view(state, review, summary, patch):
         c_md, c_json = st.columns(2)
         with c_md:
             st.download_button(
-                label="📥 Download review.md",
+                label="Download review.md",
                 data=md_content,
                 file_name=f"review_{state.change_id}.md",
                 mime="text/markdown",
@@ -806,7 +1173,7 @@ def render_technical_view(state, review, summary, patch):
             )
         with c_json:
             st.download_button(
-                label="📥 Download review.json",
+                label="Download review.json",
                 data=json_content,
                 file_name=f"review_{state.change_id}.json",
                 mime="application/json",
@@ -822,9 +1189,7 @@ if run_button and raw_diff_text.strip():
     settings.mode = execution_mode
 
     try:
-        with st.spinner(
-            "Executing concurrent specialist agents (Diff, Style, Security, Coverage)..."
-        ):
+        with st.spinner("Executing specialist pipeline (Diff, Style, Security, Coverage)..."):
             state = load_diff_from_stdin(raw_diff_text)
             orchestrator = ReviewOrchestrator(settings=settings)
             state = asyncio.run(orchestrator.run_review(state))
@@ -833,9 +1198,8 @@ if run_button and raw_diff_text.strip():
         st.session_state["last_diff_text"] = raw_diff_text
     except Exception as exc:
         st.error(
-            f"❌ **Failed to parse or review the diff:** {exc}\n\n"
-            "Please ensure your input is in **Unified Diff** format (e.g., starts with `diff --git ...`, `--- a/...`, `+++ b/...`) "
-            "or test one of the pre-made sample scenarios from the sidebar."
+            f"Failed to parse or review diff: {exc}\n\n"
+            "Please ensure the input is in valid Unified Diff format."
         )
 
 # Render active review if available in session state
@@ -845,19 +1209,17 @@ if "review_state" in st.session_state and st.session_state["review_state"]:
     summary = cached_state.summary
     patch = cached_state.suggested_patch or (review.suggested_patch if review else None)
 
-    # Check if the user changed the input in the sidebar without running review
+    # Check if user changed the input without re-running review
     if (
         raw_diff_text.strip()
         and raw_diff_text.strip() != st.session_state.get("last_diff_text", "").strip()
     ):
         st.warning(
-            "⚠️ **Input Document Changed:** You have selected or uploaded a different document in the sidebar. "
-            "Click **'🚀 Run Team Review Now'** to analyze this new document!"
+            "Input buffer modified: Select Execute Review Pipeline to analyze the updated document."
         )
 
     if review:
         st.markdown("---")
-        # Route to the selected perspective
         if "Technical" in view_mode:
             render_technical_view(cached_state, review, summary, patch)
         else:

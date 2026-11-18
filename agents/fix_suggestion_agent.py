@@ -48,15 +48,20 @@ class FixSuggestionAgent(BaseAgent):
         self.kb = kb or get_knowledge_base()
         instructions = (
             "You are the Fix-Suggestion Agent. Your purpose is to generate an exact, machine-verified "
-            "unified-diff patch for the single highest-severity finding identified in the review. "
+            "unified-diff patch for findings identified in the review. "
             "Every proposed patch is strictly verified by re-reviewing the patched code."
         )
+        # Create a dedicated kernel with no tool plugins to prevent tool-calling overhead
+        clean_kernel = Kernel()
+        for svc in kernel.services.values():
+            clean_kernel.add_service(svc)
+
         super().__init__(
             name="fix_suggestion_agent",
             description="Proposes and verifies automated remediation patches for review findings",
             instructions=instructions,
             category=Category.DIFF,
-            kernel=kernel,
+            kernel=clean_kernel,
             settings=settings,
         )
 
@@ -247,24 +252,27 @@ class FixSuggestionAgent(BaseAgent):
 
     async def _call_llm(self, prompt: str) -> str:
         """Invoke the Semantic Kernel agent and return the raw text response."""
+        from semantic_kernel.connectors.ai.prompt_execution_settings import PromptExecutionSettings
+
         response_text = ""
-        async for msg in self.sk_agent.invoke(messages=prompt):
+        settings = PromptExecutionSettings(max_tokens=512)
+        async for msg in self.sk_agent.invoke(messages=prompt, settings=settings):
             if msg.content:
                 response_text += str(msg.content)
         return response_text
 
     def _build_fix_prompt(self, finding: Finding, state: ChangeState) -> str:
         """Build the per-finding LLM prompt for fix generation."""
-        # Retrieve knowledge base grounding
+        # Retrieve knowledge base grounding — cap at 300 chars to save tokens
         kb_recipe = ""
         try:
             chunk = self.kb.lookup_rule(finding.rule_id)
             if chunk:
-                kb_recipe = chunk.content[:800]
+                kb_recipe = chunk.content[:300]
             else:
                 search_results = self.kb.search(f"{finding.title} {finding.description}", top_k=1)
                 if search_results:
-                    kb_recipe = search_results[0][0].content[:800]
+                    kb_recipe = search_results[0][0].content[:300]
         except Exception:
             pass
 
@@ -279,29 +287,21 @@ class FixSuggestionAgent(BaseAgent):
         snippet = redact_secrets_in_text(finding.code_snippet or "")
 
         prompt = (
-            "You are a code-security automated remediation engine.\n"
-            "Return ONLY strict JSON — no markdown fences, no prose, no explanation outside the JSON.\n\n"
-            f"Finding:\n"
-            f"  rule_id: {finding.rule_id}\n"
-            f"  severity: {finding.severity.value}\n"
-            f"  title: {finding.title}\n"
-            f"  description: {finding.description}\n"
-            f"  file: {finding.file_path or 'unknown'}\n"
-            f"  line_start: {finding.line_start}, line_end: {finding.line_end}\n"
-            f"  recommendation: {finding.recommendation}\n"
-            f"  code_snippet: {snippet}\n\n"
-            f"Relevant added lines from the diff (line_number: content):\n{lines_text}\n\n"
-            f"Knowledge base recipe:\n{kb_recipe}\n\n"
-            "Return one of these three JSON shapes:\n"
-            '  {"kind":"replace","file_path":"...","start_line":<int>,"end_line":<int>,'
+            "Remediation engine. Return ONLY strict JSON, no markdown, no prose.\n"
+            f"rule:{finding.rule_id} sev:{finding.severity.value} "
+            f"file:{finding.file_path or 'unknown'} lines:{finding.line_start}-{finding.line_end}\n"
+            f"title:{finding.title}\n"
+            f"rec:{finding.recommendation}\n"
+            f"snippet:{snippet}\n"
+            f"added_lines:\n{lines_text}\n"
+            f"recipe:{kb_recipe}\n"
+            "Return one JSON shape:\n"
+            '{"kind":"replace","file_path":"...","start_line":<int>,"end_line":<int>,'
             '"replacement_lines":["..."],"explanation":"...","new_imports":[],"followups":[]}\n'
-            '  {"kind":"new_file","file_path":"tests/test_x.py","content":"...","explanation":"..."}\n'
-            '  {"kind":"manual","explanation":"..."}\n'
-            "Rules:\n"
-            "- For 'replace': start_line..end_line must all be ADDED lines present in the diff.\n"
-            f"- replacement_lines must not exceed {_MAX_REPLACEMENT_LINES} lines.\n"
-            "- Never include secret values in replacement_lines.\n"
-            "- Use 'manual' when no safe automated change exists.\n"
+            '{"kind":"new_file","file_path":"tests/test_x.py","content":"...","explanation":"..."}\n'
+            '{"kind":"manual","explanation":"..."}\n'
+            f"Rules: start_line..end_line must be ADDED lines in diff. "
+            f"Max {_MAX_REPLACEMENT_LINES} replacement lines. No secrets. Use manual if unsafe.\n"
         )
         return redact_secrets_in_text(prompt)
 

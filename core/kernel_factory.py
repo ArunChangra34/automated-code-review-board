@@ -75,11 +75,21 @@ def create_kernel(settings: Settings | None = None) -> Kernel:
             else:
                 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 
-                service = OpenAIChatCompletion(
-                    service_id="chat_completion",
-                    ai_model_id=app_settings.llm_model_id,
-                    api_key=app_settings.llm_api_key,
-                )
+                # Build kwargs; include custom base_url for OpenAI-compatible
+                # providers (e.g. Groq, Together, Fireworks) when configured.
+                oai_kwargs: dict[str, Any] = {
+                    "service_id": "chat_completion",
+                    "ai_model_id": app_settings.llm_model_id,
+                    "api_key": app_settings.llm_api_key,
+                }
+                if app_settings.llm_endpoint:
+                    from openai import AsyncOpenAI
+
+                    oai_kwargs["async_client"] = AsyncOpenAI(
+                        api_key=app_settings.llm_api_key,
+                        base_url=app_settings.llm_endpoint,
+                    )
+                service = OpenAIChatCompletion(**oai_kwargs)
             kernel.add_service(service)
             logger.info(
                 "Semantic Kernel initialized with model service: %s", app_settings.llm_model_id

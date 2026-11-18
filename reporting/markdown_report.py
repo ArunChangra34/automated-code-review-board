@@ -14,7 +14,7 @@ def generate_markdown_report(state: ChangeState, mode: str = "offline") -> str:
     review = state.consolidated_review
     summary = state.summary
     patch = state.suggested_patch or (review.suggested_patch if review else None)
-    fix_suggestions: list[FixSuggestion] = state.fix_suggestions
+    fix_suggestions: list[FixSuggestion] = getattr(state, "fix_suggestions", [])
 
     # 1. Header
     lines: list[str] = [
